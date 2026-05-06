@@ -45,7 +45,15 @@ export class LinearClient {
 			const issue = await this.findIssueByIdentifier(
 				normalizeIssueKey(issueArg),
 			);
-			return issue ? [issue] : [];
+			if (!issue) {
+				return [];
+			}
+			return isIssueInConfiguredProject(
+				issue.projectId,
+				this.config.linear.projectId,
+			)
+				? [issue]
+				: [];
 		}
 
 		const viewer = await this.client.viewer;
@@ -62,6 +70,12 @@ export class LinearClient {
 
 		return sortIssuesByPriority(
 			issues
+				.filter((issue) =>
+					isIssueInConfiguredProject(
+						issue.projectId,
+						this.config.linear.projectId,
+					),
+				)
 				.filter((issue) => issue.state.id === assignedStateId)
 				.filter((issue) => {
 					if (!this.config.linear.requiredLabel) {
@@ -358,6 +372,7 @@ export class LinearClient {
 		includeLabels: boolean,
 	): Promise<LinearIssue> {
 		const state = await issue.state;
+		const project = await issue.project;
 		if (!state?.id) {
 			throw new Error(
 				`Issue ${issue.identifier} is missing workflow state data.`,
@@ -374,6 +389,7 @@ export class LinearClient {
 			identifier: issue.identifier,
 			title: issue.title,
 			url: issue.url,
+			projectId: project?.id ?? undefined,
 			priority: {
 				value: issue.priority ?? 0,
 				name: issue.priorityLabel ?? "No priority",
@@ -443,4 +459,14 @@ export function sortIssuesByPriority(issues: LinearIssue[]): LinearIssue[] {
 			return left.index - right.index;
 		})
 		.map((entry) => entry.issue);
+}
+
+export function isIssueInConfiguredProject(
+	issueProjectId: string | undefined,
+	configuredProjectId: string | undefined,
+): boolean {
+	if (!configuredProjectId) {
+		return true;
+	}
+	return issueProjectId === configuredProjectId;
 }
