@@ -96,8 +96,10 @@ export class LinearClient {
 			return;
 		}
 
+		const currentLabelIds = await this.fetchIssueLabelIds(issueId);
+		const currentLabelSet = new Set(currentLabelIds);
 		const removedLabelIds = this.workflowLabelIds.filter(
-			(labelId) => labelId !== nextLabelId,
+			(labelId) => labelId !== nextLabelId && currentLabelSet.has(labelId),
 		);
 		await this.client.updateIssue(issueId, {
 			addedLabelIds: [nextLabelId],
