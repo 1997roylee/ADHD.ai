@@ -65,6 +65,11 @@ export interface ProjectRuntimeConfig {
 	codex: {
 		binary: string;
 		model?: string;
+		models?: {
+			plan?: string;
+			implement?: string;
+			reviewTest?: string;
+		};
 		sandbox?: "read-only" | "workspace-write" | "danger-full-access";
 		codexHome?: string;
 	};
