@@ -147,7 +147,7 @@ async function executeIssue(
 		await linear.markStage(state.issue.id, "implementing");
 		await linear.comment(
 			state.issue.id,
-			"Planning completed; implementation started.",
+			buildPlanComment(state.issue.key, state.planSummary),
 		);
 	}
 
@@ -268,6 +268,27 @@ export interface ReviewOutcome {
 	passed: boolean;
 	summary: string;
 	bugs: BugRecord[];
+}
+
+export function buildPlanComment(
+	issueKey: string,
+	planSummary: string,
+): string {
+	const maxSummaryLength = 6000;
+	const normalized = planSummary.trim();
+	const truncated =
+		normalized.length > maxSummaryLength
+			? `${normalized.slice(0, maxSummaryLength)}\n\n[truncated]`
+			: normalized;
+
+	return [
+		`PIV loop plan for ${issueKey}`,
+		"",
+		"Planning completed; implementation started.",
+		"",
+		"Plan:",
+		truncated || "(No plan summary returned by planning agent.)",
+	].join("\n");
 }
 
 export function parseReviewOutcome(text: string): ReviewOutcome {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseReviewOutcome } from "../src/workflow";
+import { buildPlanComment, parseReviewOutcome } from "../src/workflow";
 
 describe("parseReviewOutcome", () => {
 	it("parses pass with no bugs", () => {
@@ -25,5 +25,19 @@ BUGS_JSON:
 		expect(outcome.passed).toBe(false);
 		expect(outcome.bugs).toHaveLength(1);
 		expect(outcome.bugs[0]?.title).toBe("Bug A");
+	});
+});
+
+describe("buildPlanComment", () => {
+	it("includes header and plan summary", () => {
+		const comment = buildPlanComment("ENG-1", "1. Do A\n2. Do B");
+		expect(comment).toContain("PIV loop plan for ENG-1");
+		expect(comment).toContain("Planning completed; implementation started.");
+		expect(comment).toContain("1. Do A");
+	});
+
+	it("uses fallback when no summary is returned", () => {
+		const comment = buildPlanComment("ENG-1", "   ");
+		expect(comment).toContain("(No plan summary returned by planning agent.)");
 	});
 });
