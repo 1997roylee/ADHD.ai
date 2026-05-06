@@ -42,9 +42,7 @@ export class LinearClient {
 		await this.ensureResolvedStatusMap();
 
 		if (issueArg) {
-			const issue = await this.findIssueByIdentifier(
-				normalizeIssueKey(issueArg),
-			);
+			const issue = await this.fetchIssueByIdentifier(issueArg);
 			if (!issue) {
 				return [];
 			}
@@ -88,6 +86,10 @@ export class LinearClient {
 					);
 				}),
 		);
+	}
+
+	async fetchIssueByIdentifier(issueArg: string): Promise<LinearIssue | null> {
+		return this.findIssueByIdentifier(normalizeIssueKey(issueArg));
 	}
 
 	async isAssignedState(stateId: string): Promise<boolean> {
