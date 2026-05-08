@@ -198,6 +198,7 @@ export interface LinearIssue {
 	title: string;
 	url: string;
 	projectId?: string;
+	teamId?: string;
 	priority: {
 		value: number;
 		name: string;
@@ -217,6 +218,7 @@ export interface IssueRef {
 	key: string;
 	title: string;
 	url: string;
+	teamId?: string;
 }
 
 export interface PullRequestRef {

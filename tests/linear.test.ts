@@ -3,6 +3,7 @@ import type { LinearIssue } from "../src/core/types";
 import {
 	buildTodoIssueFromPlanInput,
 	isIssueInConfiguredProject,
+	resolveSplitTaskTeamId,
 	sortIssuesByPriority,
 } from "../src/services/linear";
 
@@ -107,5 +108,25 @@ describe("buildTodoIssueFromPlanInput", () => {
 			projectId: "proj_456",
 			priority: 2,
 		});
+	});
+});
+
+describe("resolveSplitTaskTeamId", () => {
+	it("prefers configured team id", () => {
+		expect(resolveSplitTaskTeamId(" team_config ", " team_parent ")).toBe(
+			"team_config",
+		);
+	});
+
+	it("falls back to parent issue team id", () => {
+		expect(resolveSplitTaskTeamId(undefined, " team_parent ")).toBe(
+			"team_parent",
+		);
+	});
+
+	it("throws when no team id can be resolved", () => {
+		expect(() => resolveSplitTaskTeamId("", undefined)).toThrow(
+			"neither linear.teamId nor the parent issue team id is available",
+		);
 	});
 });

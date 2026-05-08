@@ -185,6 +185,7 @@ Set these variables before running:
 
 - `LINEAR_API_KEY`
 - `LINEAR_PROJECT_ID` (optional; when set, only issues from this Linear project are eligible)
+- `LINEAR_TEAM_ID` (optional; scopes status/label lookup to one Linear team and is used when creating split tasks)
 - `LINEAR_STATUS_ASSIGNED`
 - `LINEAR_STATUS_PLANNING`
 - `LINEAR_STATUS_IMPLEMENTING`

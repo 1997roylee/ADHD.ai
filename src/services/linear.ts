@@ -24,6 +24,7 @@ interface ParentIssueRef {
 	id: string;
 	key: string;
 	url: string;
+	teamId?: string;
 }
 
 interface CreatedLinearIssueRef {
@@ -61,6 +62,19 @@ export function buildTodoIssueFromPlanInput(input: {
 		projectId: input.projectId,
 		priority: input.task.priority,
 	};
+}
+
+export function resolveSplitTaskTeamId(
+	configuredTeamId: string | undefined,
+	parentIssueTeamId: string | undefined,
+): string {
+	const teamId = configuredTeamId?.trim() || parentIssueTeamId?.trim();
+	if (!teamId) {
+		throw new Error(
+			"Cannot create split Linear tasks because neither linear.teamId nor the parent issue team id is available.",
+		);
+	}
+	return teamId;
 }
 
 export class LinearClient {
@@ -166,14 +180,8 @@ export class LinearClient {
 		parentIssue: ParentIssueRef,
 		task: PlannedSplitTask,
 	): Promise<CreatedLinearIssueRef> {
-		await this.ensureResolvedStatusMap();
-		const assignedStateId = this.requiredStatusMap().assigned;
-		const teamId = this.config.linear.teamId?.trim();
-		if (!teamId) {
-			throw new Error(
-				"Cannot create split Linear tasks because linear.teamId is not configured.",
-			);
-		}
+		const teamId = await this.resolveTeamIdForSplitTask(parentIssue);
+		const assignedStateId = await this.resolveAssignedStateIdForTeam(teamId);
 
 		const createInput = buildTodoIssueFromPlanInput({
 			task,
@@ -278,6 +286,44 @@ export class LinearClient {
 			return null;
 		}
 		return this.mapSdkIssueToLinearIssue(issue, true);
+	}
+
+	private async resolveTeamIdForSplitTask(
+		parentIssue: ParentIssueRef,
+	): Promise<string> {
+		const configuredTeamId = this.config.linear.teamId?.trim();
+		if (configuredTeamId) {
+			return configuredTeamId;
+		}
+
+		const parentTeamId = parentIssue.teamId?.trim();
+		if (parentTeamId) {
+			return parentTeamId;
+		}
+
+		const refreshedParent = await this.findIssueByIdentifier(parentIssue.key);
+		return resolveSplitTaskTeamId(undefined, refreshedParent?.teamId);
+	}
+
+	private async resolveAssignedStateIdForTeam(teamId: string): Promise<string> {
+		const configuredTeamId = this.config.linear.teamId?.trim();
+		if (configuredTeamId && configuredTeamId === teamId) {
+			await this.ensureResolvedStatusMap();
+			return this.requiredStatusMap().assigned;
+		}
+
+		const assignedStatus = this.config.linear.statusMap.assigned.trim();
+		if (isLikelyUuid(assignedStatus)) {
+			return assignedStatus;
+		}
+
+		const workflowStates = await this.client.workflowStates({
+			first: 250,
+		});
+		const states = workflowStates.nodes.filter(
+			(state) => state.teamId === teamId,
+		);
+		return this.resolveStatusValue("assigned", assignedStatus, states);
 	}
 
 	private async ensureResolvedStatusMap(): Promise<void> {
@@ -532,6 +578,7 @@ export class LinearClient {
 			title: issue.title,
 			url: issue.url,
 			projectId: project?.id ?? undefined,
+			teamId: issue.teamId ?? undefined,
 			priority: {
 				value: issue.priority ?? 0,
 				name: issue.priorityLabel ?? "No priority",

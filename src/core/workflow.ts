@@ -52,6 +52,7 @@ interface WorkflowIssue {
 	identifier: string;
 	title: string;
 	url: string;
+	teamId?: string;
 	state: {
 		id: string;
 		name: string;
@@ -443,6 +444,7 @@ async function fetchStaleIssuesForRetry(
 			identifier: issue.identifier,
 			title: issue.title,
 			url: issue.url,
+			teamId: issue.teamId,
 			state: issue.state,
 		});
 	}
@@ -484,6 +486,7 @@ async function processIssue(
 				key,
 				title: issue.title,
 				url: issue.url,
+				teamId: issue.teamId,
 			},
 			stage: "received",
 			bugs: [],
