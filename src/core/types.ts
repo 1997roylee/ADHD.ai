@@ -5,6 +5,7 @@ export type WorkflowStage =
 	| "pr_created"
 	| "reviewing"
 	| "testing"
+	| "human_review"
 	| "blocked"
 	| "done"
 	| "failed";
@@ -315,6 +316,9 @@ export interface RunState {
 	implementationSummary?: string;
 	reviewSummary?: string;
 	testingSummary?: string;
+	complexityScore?: number;
+	reviewMode?: "bot" | "human";
+	humanReviewNotifiedAt?: string;
 	pullRequest?: PullRequestRef;
 	bugs: BugRecord[];
 	splitTasks?: SplitTaskRef[];

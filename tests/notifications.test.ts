@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import type { RunState } from "../src/core/types";
 import {
+	buildHumanReviewRequiredEmailPayload,
 	buildTaskOutcomeEmailPayload,
+	sendHumanReviewRequiredEmail,
 	sendTaskOutcomeEmail,
 } from "../src/services/notifications";
 
@@ -34,6 +36,24 @@ describe("buildTaskOutcomeEmailPayload", () => {
 		);
 		expect(payload.subject).toContain("BLOCKED");
 		expect(payload.text).toContain("Error: codex session failed");
+	});
+});
+
+describe("buildHumanReviewRequiredEmailPayload", () => {
+	it("includes PR URL and complexity score", () => {
+		const payload = buildHumanReviewRequiredEmailPayload(
+			"ops@example.com",
+			["dev@example.com"],
+			createRunState(),
+			8,
+			"Complexity score requires human review.",
+		);
+		expect(payload.subject).toContain("HUMAN REVIEW REQUIRED");
+		expect(payload.text).toContain("Complexity Score: 8/10");
+		expect(payload.text).toContain("PR: https://example.com/pr/1");
+		expect(payload.text).toContain(
+			"Reason: Complexity score requires human review.",
+		);
 	});
 });
 
@@ -90,6 +110,45 @@ describe("sendTaskOutcomeEmail", () => {
 				"done",
 			),
 		).rejects.toThrow("Resend send failed with status 400.");
+	});
+});
+
+describe("sendHumanReviewRequiredEmail", () => {
+	it("calls Resend API with human review payload", async () => {
+		const requests: Array<{ url: string; init?: RequestInit }> = [];
+		globalThis.fetch = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
+			requests.push({ url: String(input), init });
+			return new Response(JSON.stringify({ id: "email_456" }), {
+				status: 200,
+			});
+		}) as unknown as typeof fetch;
+
+		await sendHumanReviewRequiredEmail(
+			{
+				enabled: true,
+				resendApiKey: "re_test",
+				from: "ops@example.com",
+				to: ["dev@example.com"],
+			},
+			createRunState(),
+			{
+				complexityScore: 7,
+				reason: "High complexity",
+			},
+		);
+
+		expect(requests).toHaveLength(1);
+		const rawBody = requests[0]?.init?.body;
+		const body =
+			typeof rawBody === "string"
+				? (JSON.parse(rawBody) as Record<string, unknown>)
+				: {};
+		expect(body.subject).toBe("[ADHD.ai][Default] ENG-1 HUMAN REVIEW REQUIRED");
+		expect(typeof body.text).toBe("string");
+		expect(String(body.text)).toContain("Complexity Score: 7/10");
 	});
 });
 

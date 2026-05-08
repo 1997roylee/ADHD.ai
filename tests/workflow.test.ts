@@ -16,9 +16,11 @@ import {
 	fixedBugsForImplementationComment,
 	isRunStateStaleForRetry,
 	normalizeFailedReviewBugs,
+	parsePlannerComplexityScore,
 	parsePlannerDecision,
 	readyPullRequestAfterPassingReview,
 	resolvePollingSettings,
+	resolveReviewModeForComplexityScore,
 	routeProjectsForIssueProjectId,
 	selectIssueQueueForCycle,
 	selectStaleRunIssueKeys,
@@ -207,6 +209,7 @@ describe("stale run retry helpers", () => {
 		expect(shouldRetryRunStage("pr_created")).toBe(true);
 		expect(shouldRetryRunStage("reviewing")).toBe(true);
 		expect(shouldRetryRunStage("testing")).toBe(true);
+		expect(shouldRetryRunStage("human_review")).toBe(false);
 		expect(shouldRetryRunStage("blocked")).toBe(false);
 		expect(shouldRetryRunStage("done")).toBe(false);
 	});
@@ -645,6 +648,7 @@ describe("parsePlannerDecision", () => {
 		expect(result).toEqual({
 			complexity: "SIMPLE",
 			splitTasks: [],
+			complexityScore: 4,
 		});
 	});
 
@@ -652,6 +656,7 @@ describe("parsePlannerDecision", () => {
 		const result = parsePlannerDecision(
 			[
 				"COMPLEXITY: COMPLEX",
+				"COMPLEXITY_SCORE: 4",
 				"SPLIT_TASKS_JSON:",
 				"```json",
 				JSON.stringify(
@@ -688,6 +693,7 @@ describe("parsePlannerDecision", () => {
 				priority: undefined,
 			},
 		]);
+		expect(result.complexityScore).toBe(4);
 	});
 
 	it("throws when COMPLEX split task JSON is malformed", () => {
@@ -708,6 +714,49 @@ describe("parsePlannerDecision", () => {
 				["COMPLEXITY: COMPLEX", "SPLIT_TASKS_JSON: []"].join("\n"),
 			),
 		).toThrow("must be a non-empty JSON array");
+	});
+
+	it("throws when COMPLEXITY_SCORE is invalid", () => {
+		expect(() =>
+			parsePlannerDecision(
+				["COMPLEXITY: SIMPLE", "COMPLEXITY_SCORE: hard", "scope"].join("\n"),
+			),
+		).toThrow("Invalid COMPLEXITY_SCORE");
+	});
+});
+
+describe("parsePlannerComplexityScore", () => {
+	it("parses explicit score", () => {
+		expect(parsePlannerComplexityScore("COMPLEXITY_SCORE: 3")).toBe(3);
+	});
+
+	it("defaults to conservative score when missing", () => {
+		expect(parsePlannerComplexityScore("no score marker")).toBe(4);
+	});
+});
+
+describe("planner routing with missing score", () => {
+	it("routes simple plans without score to bot review mode", () => {
+		const decision = parsePlannerDecision(
+			["COMPLEXITY: SIMPLE", "scope summary", "implementation steps"].join(
+				"\n",
+			),
+		);
+		expect(resolveReviewModeForComplexityScore(decision.complexityScore)).toBe(
+			"bot",
+		);
+	});
+});
+
+describe("resolveReviewModeForComplexityScore", () => {
+	it("uses bot review for scores below threshold", () => {
+		expect(resolveReviewModeForComplexityScore(0)).toBe("bot");
+		expect(resolveReviewModeForComplexityScore(4)).toBe("bot");
+	});
+
+	it("uses human review for threshold and above", () => {
+		expect(resolveReviewModeForComplexityScore(5)).toBe("human");
+		expect(resolveReviewModeForComplexityScore(10)).toBe("human");
 	});
 });
 
