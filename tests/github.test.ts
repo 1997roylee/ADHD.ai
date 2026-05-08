@@ -1,9 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { PullRequestRef, ResolvedProjectConfig } from "../src/core/types";
+import type { ResolvedProjectConfig } from "../src/core/types";
 import {
 	buildBugIssueBody,
+	createDraftPrFromWorktree,
+	ensureGhAuth,
 	issueBranchName,
-	markPrReadyForReview,
 } from "../src/services/github";
 import type { CommandResult } from "../src/utils/shell";
 
@@ -25,111 +26,215 @@ describe("buildBugIssueBody", () => {
 	});
 });
 
-describe("markPrReadyForReview", () => {
-	it("marks draft pull requests as ready", async () => {
-		const calls: Array<{ command: string; args: string[] }> = [];
+describe("ensureGhAuth", () => {
+	it("retries and succeeds on the third attempt", async () => {
+		let attempts = 0;
+		const runCommand = mock(async (): Promise<CommandResult> => {
+			attempts += 1;
+			if (attempts < 3) {
+				return { code: 1, stdout: "", stderr: "temporary failure" };
+			}
+			return { code: 0, stdout: "ok", stderr: "" };
+		});
+
+		await ensureGhAuth(createProjectConfig(), {
+			runCommand,
+			assertCommandOk: assertOk,
+		});
+
+		expect(attempts).toBe(3);
+	});
+
+	it("fails after three attempts", async () => {
+		let attempts = 0;
+		const runCommand = mock(async (): Promise<CommandResult> => {
+			attempts += 1;
+			return { code: 1, stdout: "", stderr: "still failing" };
+		});
+
+		await expect(
+			ensureGhAuth(createProjectConfig(), {
+				runCommand,
+				assertCommandOk: assertOk,
+			}),
+		).rejects.toThrow("gh auth status failed after 3 attempts");
+		expect(attempts).toBe(3);
+	});
+});
+
+describe("createDraftPrFromWorktree", () => {
+	it("retries draft pr creation and returns parsed pr ref", async () => {
+		let prCreateAttempts = 0;
 		const runCommand = mock(
-			async (command: string, args: string[]): Promise<CommandResult> => {
-				calls.push({ command, args });
-				if (args[1] === "view") {
+			async (_command: string, args: string[]): Promise<CommandResult> => {
+				if (args[0] === "rev-parse") {
 					return { code: 0, stdout: "true\n", stderr: "" };
+				}
+				if (args[0] === "branch" && args[1] === "--show-current") {
+					return { code: 0, stdout: "codex/eng-42\n", stderr: "" };
+				}
+				if (args[0] === "add") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "diff") {
+					return { code: 1, stdout: "", stderr: "" };
+				}
+				if (args[0] === "commit" || args[0] === "push") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "auth") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "pr" && args[1] === "create") {
+					prCreateAttempts += 1;
+					if (prCreateAttempts < 3) {
+						return { code: 1, stdout: "", stderr: "temporary outage" };
+					}
+					return {
+						code: 0,
+						stdout: "https://github.com/acme/repo/pull/77\n",
+						stderr: "",
+					};
 				}
 				return { code: 0, stdout: "", stderr: "" };
 			},
 		);
-		const ready = await markPrReadyForReview(
+
+		const pr = await createDraftPrFromWorktree(
 			createProjectConfig(),
-			createPullRequest(),
+			"ENG-42",
+			"Retry draft PR",
 			{
 				runCommand,
-				assertCommandOk: () => {},
-				ensureGhAuth: async () => {},
+				assertCommandOk: assertOk,
 			},
 		);
 
-		expect(ready).toBe(true);
-		expect(calls).toEqual([
-			{
-				command: "gh",
-				args: [
-					"pr",
-					"view",
-					"https://github.com/acme/repo/pull/42",
-					"--json",
-					"isDraft",
-					"--jq",
-					".isDraft",
-				],
-			},
-			{
-				command: "gh",
-				args: ["pr", "ready", "https://github.com/acme/repo/pull/42"],
-			},
-		]);
+		expect(prCreateAttempts).toBe(3);
+		expect(pr.url).toBe("https://github.com/acme/repo/pull/77");
+		expect(pr.number).toBe(77);
 	});
 
-	it("no-ops when pull request is already ready", async () => {
-		const calls: Array<{ command: string; args: string[] }> = [];
+	it("retries commit once after a transient failure", async () => {
+		let commitAttempts = 0;
 		const runCommand = mock(
-			async (command: string, args: string[]): Promise<CommandResult> => {
-				calls.push({ command, args });
-				return { code: 0, stdout: "false\n", stderr: "" };
+			async (_command: string, args: string[]): Promise<CommandResult> => {
+				if (args[0] === "rev-parse") {
+					return { code: 0, stdout: "true\n", stderr: "" };
+				}
+				if (args[0] === "branch" && args[1] === "--show-current") {
+					return { code: 0, stdout: "codex/eng-42\n", stderr: "" };
+				}
+				if (args[0] === "add") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "diff") {
+					return { code: 1, stdout: "", stderr: "" };
+				}
+				if (args[0] === "commit") {
+					commitAttempts += 1;
+					if (commitAttempts === 1) {
+						return { code: 1, stdout: "", stderr: "transient failure" };
+					}
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "push" || args[0] === "auth") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "pr" && args[1] === "create") {
+					return {
+						code: 0,
+						stdout: "https://github.com/acme/repo/pull/88\n",
+						stderr: "",
+					};
+				}
+				if (args[0] === "log") {
+					return { code: 0, stdout: "not matching title\n", stderr: "" };
+				}
+				return { code: 0, stdout: "", stderr: "" };
 			},
 		);
-		const ready = await markPrReadyForReview(
+
+		await createDraftPrFromWorktree(
 			createProjectConfig(),
-			createPullRequest(),
+			"ENG-42",
+			"Retry commit",
 			{
 				runCommand,
-				assertCommandOk: () => {},
-				ensureGhAuth: async () => {},
+				assertCommandOk: assertOk,
 			},
 		);
 
-		expect(ready).toBe(false);
-		expect(calls).toEqual([
-			{
-				command: "gh",
-				args: [
-					"pr",
-					"view",
-					"https://github.com/acme/repo/pull/42",
-					"--json",
-					"isDraft",
-					"--jq",
-					".isDraft",
-				],
-			},
-		]);
+		expect(commitAttempts).toBe(2);
 	});
 
-	it("does nothing in dry-run mode", async () => {
+	it("treats ambiguous failed commit as success when already committed", async () => {
+		const commitTitle = "[adhd.ai] ENG-42: Retry commit";
+		let commitAttempts = 0;
+		let diffCalls = 0;
 		const runCommand = mock(
-			async (): Promise<CommandResult> => ({ code: 0, stdout: "", stderr: "" }),
-		);
-		const ready = await markPrReadyForReview(
-			{ ...createProjectConfig(), dryRun: true },
-			createPullRequest(),
-			{
-				runCommand,
-				assertCommandOk: () => {},
-				ensureGhAuth: async () => {},
+			async (_command: string, args: string[]): Promise<CommandResult> => {
+				if (args[0] === "rev-parse") {
+					return { code: 0, stdout: "true\n", stderr: "" };
+				}
+				if (args[0] === "branch" && args[1] === "--show-current") {
+					return { code: 0, stdout: "codex/eng-42\n", stderr: "" };
+				}
+				if (args[0] === "add") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "diff") {
+					diffCalls += 1;
+					if (diffCalls === 1) {
+						return { code: 1, stdout: "", stderr: "" };
+					}
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "commit") {
+					commitAttempts += 1;
+					return { code: 1, stdout: "", stderr: "uncertain failure" };
+				}
+				if (args[0] === "log") {
+					return { code: 0, stdout: `${commitTitle}\n`, stderr: "" };
+				}
+				if (args[0] === "push" || args[0] === "auth") {
+					return { code: 0, stdout: "", stderr: "" };
+				}
+				if (args[0] === "pr" && args[1] === "create") {
+					return {
+						code: 0,
+						stdout: "https://github.com/acme/repo/pull/99\n",
+						stderr: "",
+					};
+				}
+				return { code: 0, stdout: "", stderr: "" };
 			},
 		);
 
-		expect(ready).toBe(false);
-		expect(runCommand).not.toHaveBeenCalled();
-	});
+		const pr = await createDraftPrFromWorktree(
+			createProjectConfig(),
+			"ENG-42",
+			"Retry commit",
+			{
+				runCommand,
+				assertCommandOk: assertOk,
+			},
+		);
 
-	it("throws when no pull request target is available", async () => {
-		await expect(
-			markPrReadyForReview(createProjectConfig(), {
-				branch: "codex/eng-1",
-				title: "PR",
-			}),
-		).rejects.toThrow("PR URL or number is required to mark PR as ready");
+		expect(commitAttempts).toBe(1);
+		expect(pr.number).toBe(99);
 	});
 });
+
+function assertOk(
+	_command: string,
+	_args: string[],
+	result: CommandResult,
+): void {
+	if (result.code !== 0) {
+		throw new Error(result.stderr || result.stdout || "command failed");
+	}
+}
 
 function createProjectConfig(): ResolvedProjectConfig {
 	return {
@@ -174,13 +279,5 @@ function createProjectConfig(): ResolvedProjectConfig {
 			reviewTest: "/tmp/review.md",
 		},
 		dryRun: false,
-	};
-}
-
-function createPullRequest(): PullRequestRef {
-	return {
-		branch: "codex/eng-1",
-		title: "PR",
-		url: "https://github.com/acme/repo/pull/42",
 	};
 }
