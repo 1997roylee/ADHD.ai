@@ -42,9 +42,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 	}
 
 	private buildCommonArgs(): string[] {
+		const permissionMode =
+			this.config.agent?.permissionMode ?? "bypassPermissions";
 		return [
 			"--output-format",
 			"json",
+			"--permission-mode",
+			permissionMode,
 			...this.buildModelArgs(),
 			...this.buildMaxTurnsArgs(),
 			...this.buildAllowedToolsArgs(),

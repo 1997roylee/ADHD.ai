@@ -125,6 +125,7 @@ function buildEnvBase(cwd: string): ProjectRuntimeConfig {
 			model: normalizeOptionalValue(env.CLAUDE_CODE_MODEL),
 			maxTurns: parseOptionalPositiveInt(env.CLAUDE_CODE_MAX_TURNS),
 			allowedTools: parseCommaList(env.CLAUDE_CODE_ALLOWED_TOOLS),
+			permissionMode: normalizePermissionMode(env.CLAUDE_CODE_PERMISSION_MODE),
 		},
 		dryRun: env.PIV_DRY_RUN === "1",
 	};
@@ -832,5 +833,32 @@ function normalizeAgentBackend(
 	}
 	throw new Error(
 		`Invalid AGENT_BACKEND value: '${value}'. Must be 'codex' or 'claude-code'.`,
+	);
+}
+
+type ClaudePermissionMode = NonNullable<
+	NonNullable<ResolvedProjectConfig["agent"]>["permissionMode"]
+>;
+
+const VALID_PERMISSION_MODES: readonly ClaudePermissionMode[] = [
+	"default",
+	"acceptEdits",
+	"bypassPermissions",
+	"dontAsk",
+	"plan",
+];
+
+function normalizePermissionMode(
+	value: string | undefined,
+): ClaudePermissionMode | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const normalized = value.trim();
+	if ((VALID_PERMISSION_MODES as readonly string[]).includes(normalized)) {
+		return normalized as ClaudePermissionMode;
+	}
+	throw new Error(
+		`Invalid CLAUDE_CODE_PERMISSION_MODE value: '${value}'. Must be one of: ${VALID_PERMISSION_MODES.join(", ")}.`,
 	);
 }

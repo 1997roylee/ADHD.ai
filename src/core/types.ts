@@ -87,6 +87,12 @@ export interface ProjectRuntimeConfig {
 		model?: string;
 		maxTurns?: number;
 		allowedTools?: string[];
+		permissionMode?:
+			| "default"
+			| "acceptEdits"
+			| "bypassPermissions"
+			| "dontAsk"
+			| "plan";
 	};
 	skills: {
 		root: string;
