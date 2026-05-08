@@ -38,7 +38,7 @@ const config: ResolvedProjectConfig = {
 		binary: "codex",
 		streamLogs: false,
 	},
-	skills: { plan: "p", implement: "i", reviewTest: "r" },
+	skills: { root: "r", plan: "p", implement: "i", reviewTest: "r" },
 	dryRun: false,
 };
 
