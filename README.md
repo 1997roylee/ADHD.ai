@@ -46,10 +46,11 @@ flowchart LR
 3. The planning agent turns the job into an implementation plan with risks and tests.
 4. If planning marks the task as too complex (`COMPLEXITY: COMPLEX`), ADHD.ai creates child Linear tasks in the assigned/Todo state, comments the parent with links, and marks the parent done.
 5. Otherwise, the implementation agent changes the code and opens or updates a GitHub PR.
-6. The verification agent reviews and tests the PR work in a separate Codex session.
-7. If verification fails, ADHD.ai sends structured bug feedback back to implementation and updates the same PR branch.
-8. The loop repeats until verification passes or the job is blocked.
-9. Linear status, labels, comments, and notifications stay synchronized with the current stage.
+6. Planning emits `COMPLEXITY_SCORE: 0..10` for review routing: scores `< 5` continue to bot verification; scores `>= 5` require human review and send an email notification.
+7. For bot-verifiable work, the verification agent reviews and tests the PR work in a separate Codex session.
+8. If verification fails, ADHD.ai sends structured bug feedback back to implementation and updates the same PR branch.
+9. The loop repeats until verification passes or the job is blocked.
+10. Linear status, labels, comments, and notifications stay synchronized with the current stage.
 
 ## Multi-Project Configuration
 
@@ -184,7 +185,7 @@ Recommended production pattern:
 
 ## Email Notifications
 
-Email notifications are optional and global. ADHD.ai sends a notification when an issue reaches a terminal outcome (`done` or `blocked`).
+Email notifications are optional and global. ADHD.ai sends notifications for terminal outcomes (`done` or `blocked`) and when planning requires human review (`COMPLEXITY_SCORE >= 5`).
 
 Configuration options:
 

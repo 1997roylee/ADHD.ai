@@ -52,6 +52,7 @@ describe("buildPlanPrompt", () => {
 			[
 				"name: adhd-plan",
 				"COMPLEXITY: SIMPLE|COMPLEX",
+				"COMPLEXITY_SCORE: 0..10",
 				"SPLIT_TASKS_JSON: [...]",
 			].join("\n"),
 			"utf8",
@@ -59,6 +60,7 @@ describe("buildPlanPrompt", () => {
 		try {
 			const prompt = await buildPlanPrompt(skillPath, issue);
 			expect(prompt).toContain("COMPLEXITY: SIMPLE|COMPLEX");
+			expect(prompt).toContain("COMPLEXITY_SCORE: 0..10");
 			expect(prompt).toContain("SPLIT_TASKS_JSON: [...]");
 		} finally {
 			await rm(tmpDir, { recursive: true, force: true });

@@ -7,7 +7,10 @@ import {
 	updateDraftPrFromWorktree,
 } from "../services/github";
 import { LinearClient } from "../services/linear";
-import { sendTaskOutcomeEmail } from "../services/notifications";
+import {
+	sendHumanReviewRequiredEmail,
+	sendTaskOutcomeEmail,
+} from "../services/notifications";
 import { selectPlanningSupplementalSkills } from "../skills/catalog";
 import {
 	buildFixPrompt,
@@ -61,6 +64,9 @@ interface WorkflowIssue {
 		name: string;
 	};
 }
+
+const DEFAULT_PLANNER_COMPLEXITY_SCORE = 5;
+const HUMAN_REVIEW_COMPLEXITY_THRESHOLD = 5;
 
 export async function runWorkflow(
 	config: LoadedConfig,
@@ -611,7 +617,11 @@ async function executeIssue(
 ): Promise<void> {
 	const agent = createAgentAdapter(config);
 
-	while (state.stage !== "done" && state.stage !== "blocked") {
+	while (
+		state.stage !== "done" &&
+		state.stage !== "blocked" &&
+		state.stage !== "human_review"
+	) {
 		await heartbeatRunLease(
 			config.workspacePath,
 			state,
@@ -634,7 +644,7 @@ async function executeIssue(
 		}
 
 		if (state.stage === "pr_created") {
-			await handlePrCreatedStage(config, linear, state);
+			await handlePrCreatedStage(config, notifications, linear, state);
 			continue;
 		}
 
@@ -686,6 +696,10 @@ async function handlePlanningStage(
 	appendCodexUsage(state, "planning", result.usage);
 
 	const parsedPlan = parsePlannerDecision(state.planSummary);
+	state.complexityScore = parsedPlan.complexityScore;
+	state.reviewMode = resolveReviewModeForComplexityScore(
+		parsedPlan.complexityScore,
+	);
 	if (parsedPlan.complexity === "SIMPLE") {
 		Object.assign(state, transitionStage(state, "implementing"));
 		await saveRunState(config.workspacePath, state);
@@ -840,6 +854,7 @@ async function handleImplementingStage(
 
 async function handlePrCreatedStage(
 	config: ResolvedProjectConfig,
+	notifications: ResolvedNotificationConfig,
 	linear: LinearClient,
 	state: RunState,
 ): Promise<void> {
@@ -847,6 +862,9 @@ async function handlePrCreatedStage(
 	await saveRunState(config.workspacePath, state);
 	await linear.markStage(state.issue.id, "reviewing");
 	await linear.applyStageLabel(state.issue.id, "reviewing");
+	if (state.reviewMode === "human") {
+		await parkIssueForHumanReview(config, notifications, linear, state);
+	}
 }
 
 async function handleReviewTestingStage(
@@ -856,6 +874,11 @@ async function handleReviewTestingStage(
 	linear: LinearClient,
 	state: RunState,
 ): Promise<void> {
+	if (state.reviewMode === "human") {
+		await parkIssueForHumanReview(config, notifications, linear, state);
+		return;
+	}
+
 	logger.info(buildIssueJobLogFields(state, "testing"), "Testing issue");
 	await linear.markStage(state.issue.id, "testing");
 	await linear.applyStageLabel(state.issue.id, "testing");
@@ -911,6 +934,38 @@ async function handleReviewTestingStage(
 		buildIssueJobLogFields(state, "testing"),
 		"Review/testing completed",
 	);
+}
+
+async function parkIssueForHumanReview(
+	config: ResolvedProjectConfig,
+	notifications: ResolvedNotificationConfig,
+	linear: LinearClient,
+	state: RunState,
+): Promise<void> {
+	if (state.stage !== "reviewing") {
+		Object.assign(state, transitionStage(state, "reviewing"));
+		await saveRunState(config.workspacePath, state);
+		await linear.markStage(state.issue.id, "reviewing");
+		await linear.applyStageLabel(state.issue.id, "reviewing");
+	}
+
+	const score = state.complexityScore ?? DEFAULT_PLANNER_COMPLEXITY_SCORE;
+	const reason = `Planning complexity score ${score}/10 requires human review (threshold >= ${HUMAN_REVIEW_COMPLEXITY_THRESHOLD}).`;
+	if (!state.humanReviewNotifiedAt) {
+		const reviewComment = [
+			`Human review required for ${state.issue.key}.`,
+			reason,
+			state.pullRequest?.url ? `PR: ${state.pullRequest.url}` : undefined,
+		]
+			.filter(Boolean)
+			.join("\n");
+		await linear.comment(state.issue.id, reviewComment);
+		await safeNotifyHumanReviewRequired(notifications, state, score, reason);
+		state.humanReviewNotifiedAt = new Date().toISOString();
+	}
+
+	Object.assign(state, transitionStage(state, "human_review"));
+	await saveRunState(config.workspacePath, state);
 }
 
 export function normalizeFailedReviewBugs(
@@ -973,19 +1028,23 @@ export async function readyPullRequestAfterPassingReview(
 export interface PlannerDecision {
 	complexity: "SIMPLE" | "COMPLEX";
 	splitTasks: PlannedSplitTask[];
+	complexityScore: number;
 }
 
 export function parsePlannerDecision(planSummary: string): PlannerDecision {
 	const complexity = parsePlannerComplexity(planSummary);
+	const complexityScore = parsePlannerComplexityScore(planSummary);
 	if (complexity === "SIMPLE") {
 		return {
 			complexity,
 			splitTasks: [],
+			complexityScore,
 		};
 	}
 	return {
 		complexity,
 		splitTasks: parsePlannerSplitTasks(planSummary),
+		complexityScore,
 	};
 }
 
@@ -999,6 +1058,36 @@ export function parsePlannerComplexity(
 		return "SIMPLE";
 	}
 	return match[1].toUpperCase() === "COMPLEX" ? "COMPLEX" : "SIMPLE";
+}
+
+export function parsePlannerComplexityScore(planSummary: string): number {
+	const match = planSummary.match(
+		/(?:^|\n)\s*COMPLEXITY_SCORE\s*:\s*([^\n]+)\s*(?:\n|$)/i,
+	);
+	if (!match?.[1]) {
+		return DEFAULT_PLANNER_COMPLEXITY_SCORE;
+	}
+
+	const rawScore = match[1].trim();
+	if (!/^\d+$/.test(rawScore)) {
+		throw new Error(
+			`Invalid COMPLEXITY_SCORE '${rawScore}'. Expected an integer between 0 and 10.`,
+		);
+	}
+
+	const score = Number(rawScore);
+	if (!Number.isInteger(score) || score < 0 || score > 10) {
+		throw new Error(
+			`Invalid COMPLEXITY_SCORE '${rawScore}'. Expected an integer between 0 and 10.`,
+		);
+	}
+	return score;
+}
+
+export function resolveReviewModeForComplexityScore(
+	complexityScore: number,
+): "bot" | "human" {
+	return complexityScore < HUMAN_REVIEW_COMPLEXITY_THRESHOLD ? "bot" : "human";
 }
 
 export function parsePlannerSplitTasks(
@@ -1268,6 +1357,30 @@ async function safeNotifyTaskOutcome(
 		runLogger.error(
 			{ err: normalizeError(error) },
 			"Failed to send task outcome email notification",
+		);
+	}
+}
+
+async function safeNotifyHumanReviewRequired(
+	notifications: ResolvedNotificationConfig,
+	state: RunState,
+	complexityScore: number,
+	reason: string,
+): Promise<void> {
+	const runLogger = logger.child({
+		projectId: state.projectId,
+		issueKey: state.issue.key,
+		outcome: "human_review_required",
+	});
+	try {
+		await sendHumanReviewRequiredEmail(notifications.email, state, {
+			complexityScore,
+			reason,
+		});
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to send human review required email notification",
 		);
 	}
 }
