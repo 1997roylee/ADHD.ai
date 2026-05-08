@@ -1,6 +1,8 @@
 import {
 	commentOnPr,
 	createDraftPrFromWorktree,
+	issueBranchName,
+	prepareImplementationBranch,
 	updateDraftPrFromWorktree,
 } from "../services/github";
 import { LinearClient } from "../services/linear";
@@ -21,6 +23,10 @@ import { type AgentAdapter, createAgentAdapter } from "./agent-adapter";
 import { type LoadedConfig, getProjectById } from "./config";
 import { type ReviewOutcome, parseReviewOutcome } from "./review";
 import {
+	applyRunLease,
+	clearRunLease,
+	hasRunLeaseConflict,
+	isRunLeaseExpired,
 	listRunStates,
 	loadRunState,
 	normalizeIssueKey,
@@ -259,7 +265,14 @@ async function runProjectCycle(
 	}
 
 	for (const issue of issueQueue) {
-		await processIssue(config, notifications, linear, issue);
+		await processIssue(
+			config,
+			notifications,
+			linear,
+			issue,
+			polling.staleRunTimeoutMs,
+			buildRunLeaseOwnerId(),
+		);
 	}
 
 	return issueQueue.length;
@@ -304,6 +317,9 @@ export function isRunStateStaleForRetry(
 	timeoutMs: number,
 ): boolean {
 	if (!shouldRetryRunStage(state.stage)) {
+		return false;
+	}
+	if (!isRunLeaseExpired(state, nowMs)) {
 		return false;
 	}
 	const updatedAtMs = Date.parse(state.updatedAt);
@@ -377,6 +393,8 @@ async function processIssue(
 	notifications: ResolvedNotificationConfig,
 	linear: LinearClient,
 	issue: WorkflowIssue,
+	leaseTimeoutMs: number,
+	leaseOwnerId: string,
 ): Promise<void> {
 	const key = normalizeIssueKey(issue.identifier);
 	const issueLogger = logger.child({ projectId: config.id, issueKey: key });
@@ -418,8 +436,29 @@ async function processIssue(
 		"Taking issue job",
 	);
 
+	const leaseAcquired = await tryAcquireRunLease(
+		config.workspacePath,
+		runState,
+		leaseOwnerId,
+		leaseTimeoutMs,
+	);
+	if (!leaseAcquired) {
+		issueLogger.info(
+			{ leaseOwnerId, currentLeaseOwnerId: runState.lease?.ownerId },
+			"Skipping issue because it is already leased by another worker",
+		);
+		return;
+	}
+
 	try {
-		await executeIssue(config, notifications, linear, runState);
+		await executeIssue(
+			config,
+			notifications,
+			linear,
+			runState,
+			leaseOwnerId,
+			leaseTimeoutMs,
+		);
 		issueLogger.info({ stage: runState.stage }, "Issue workflow finished");
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -440,6 +479,8 @@ async function processIssue(
 			"Issue workflow failed",
 		);
 		await safeNotifyTaskOutcome(notifications, runState, "blocked", message);
+	} finally {
+		await releaseRunLease(config.workspacePath, runState, leaseOwnerId);
 	}
 }
 
@@ -497,10 +538,18 @@ async function executeIssue(
 	notifications: ResolvedNotificationConfig,
 	linear: LinearClient,
 	state: RunState,
+	leaseOwnerId: string,
+	leaseTimeoutMs: number,
 ): Promise<void> {
 	const agent = createAgentAdapter(config);
 
 	while (state.stage !== "done" && state.stage !== "blocked") {
+		await heartbeatRunLease(
+			config.workspacePath,
+			state,
+			leaseOwnerId,
+			leaseTimeoutMs,
+		);
 		if (state.stage === "received") {
 			await handleReceivedStage(config, linear, state);
 			continue;
@@ -583,6 +632,20 @@ async function handleImplementingStage(
 		"Implementing issue",
 	);
 
+	if (!config.dryRun) {
+		const preparedBranch = await prepareImplementationBranch(
+			config,
+			state.issue.key,
+			state.pullRequest,
+		);
+		if (!state.pullRequest) {
+			state.pullRequest = {
+				branch: preparedBranch,
+				title: `[codex] ${state.issue.key}: ${state.issue.title}`,
+			};
+		}
+	}
+
 	const hasExistingPr = Boolean(state.pullRequest);
 	const fixRound = hasExistingPr && state.bugs.length > 0;
 	const prompt = fixRound
@@ -606,7 +669,7 @@ async function handleImplementingStage(
 	if (!hasExistingPr) {
 		if (config.dryRun) {
 			state.pullRequest = {
-				branch: `codex/${state.issue.key.toLowerCase()}`,
+				branch: issueBranchName(state.issue.key),
 				title: `[codex] ${state.issue.key}: ${state.issue.title}`,
 				url: "https://example.invalid/dry-run",
 			};
@@ -762,6 +825,59 @@ export function appendCodexUsage(
 			recordedAt: new Date().toISOString(),
 		},
 	];
+}
+
+export function buildRunLeaseOwnerId(nowMs = Date.now()): string {
+	return `${process.pid}-${nowMs}-${Math.floor(Math.random() * 100000)}`;
+}
+
+async function tryAcquireRunLease(
+	cwd: string,
+	state: RunState,
+	leaseOwnerId: string,
+	leaseTimeoutMs: number,
+): Promise<boolean> {
+	const nowMs = Date.now();
+	if (hasRunLeaseConflict(state, leaseOwnerId, nowMs)) {
+		return false;
+	}
+	Object.assign(
+		state,
+		applyRunLease(state, leaseOwnerId, leaseTimeoutMs, nowMs),
+	);
+	await saveRunState(cwd, state);
+	return true;
+}
+
+async function heartbeatRunLease(
+	cwd: string,
+	state: RunState,
+	leaseOwnerId: string,
+	leaseTimeoutMs: number,
+): Promise<void> {
+	const nowMs = Date.now();
+	if (hasRunLeaseConflict(state, leaseOwnerId, nowMs)) {
+		throw new Error(
+			"Run lease is no longer owned by the active worker; stopping issue execution.",
+		);
+	}
+	Object.assign(
+		state,
+		applyRunLease(state, leaseOwnerId, leaseTimeoutMs, nowMs),
+	);
+	await saveRunState(cwd, state);
+}
+
+async function releaseRunLease(
+	cwd: string,
+	state: RunState,
+	leaseOwnerId: string,
+): Promise<void> {
+	if (!state.lease?.ownerId || state.lease.ownerId !== leaseOwnerId) {
+		return;
+	}
+	Object.assign(state, clearRunLease(state));
+	await saveRunState(cwd, state);
 }
 
 async function safeLinearComment(

@@ -10,8 +10,9 @@
 ## Polling and Recovery
 
 1. Polling is configured globally (`intervalMs`, `maxCycles`, `exitWhenIdle`, `staleRunTimeoutMs`).
-2. Stale in-progress runs are eligible for requeue after timeout.
-3. `--all-projects --issue` must resolve to one unique project mapping.
+2. In-progress runs acquire a per-issue lease to prevent duplicate workers from processing the same issue concurrently.
+3. Stale in-progress runs are eligible for requeue only after lease expiry and timeout.
+4. `--all-projects --issue` must resolve to one unique project mapping.
 
 ## Verification Signal Contract
 

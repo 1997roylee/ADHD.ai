@@ -5,6 +5,10 @@ import type {
 } from "../core/types";
 import { assertCommandOk, runCommand } from "../utils/shell";
 
+export function issueBranchName(issueKey: string): string {
+	return `codex/${issueKey.toLowerCase()}`;
+}
+
 export async function ensureGhAuth(
 	config: ResolvedProjectConfig,
 ): Promise<void> {
@@ -20,9 +24,8 @@ export async function createDraftPrFromWorktree(
 	issueTitle: string,
 ): Promise<PullRequestRef> {
 	await ensureGitRepository(config);
-
-	const branch = `codex/${issueKey.toLowerCase()}`;
-	await checkoutBranch(config, branch);
+	const branch = issueBranchName(issueKey);
+	await ensureCurrentBranch(config, branch);
 
 	await stageAllChanges(config);
 
@@ -84,7 +87,7 @@ export async function updateDraftPrFromWorktree(
 	issueKey: string,
 ): Promise<void> {
 	await ensureGitRepository(config);
-	await checkoutBranch(config, prBranch);
+	await ensureCurrentBranch(config, prBranch);
 	await stageAllChanges(config);
 
 	const hasChanges = await stagedChangesExist(config);
@@ -97,6 +100,39 @@ export async function updateDraftPrFromWorktree(
 	const commitTitle = `[adhd.ai] ${issueKey}: address review feedback`;
 	await commitChanges(config, commitTitle);
 	await pushBranch(config, prBranch);
+}
+
+export async function prepareImplementationBranch(
+	config: ResolvedProjectConfig,
+	issueKey: string,
+	pullRequest: PullRequestRef | undefined,
+): Promise<string> {
+	await ensureGitRepository(config);
+	await ensureCleanWorktree(config);
+
+	if (pullRequest?.branch) {
+		await checkoutBranch(config, pullRequest.branch);
+		return pullRequest.branch;
+	}
+
+	await checkoutBranch(config, config.repo.baseBranch);
+	const branch = issueBranchName(issueKey);
+	await checkoutBranch(config, branch, { create: true });
+	return branch;
+}
+
+export async function ensureCleanWorktree(
+	config: ResolvedProjectConfig,
+): Promise<void> {
+	const status = await runCommand("git", ["status", "--porcelain"], {
+		cwd: config.executionPath,
+	});
+	assertCommandOk("git", ["status", "--porcelain"], status);
+	if (status.stdout.trim()) {
+		throw new Error(
+			"Working tree is not clean before implementation. Commit/stash existing changes before running ADHD.ai.",
+		);
+	}
 }
 
 async function stageAllChanges(config: ResolvedProjectConfig): Promise<void> {
@@ -226,6 +262,7 @@ async function ensureGitRepository(
 async function checkoutBranch(
 	config: ResolvedProjectConfig,
 	branch: string,
+	options: { create?: boolean } = {},
 ): Promise<void> {
 	const existing = await runCommand("git", ["branch", "--list", branch], {
 		cwd: config.executionPath,
@@ -240,10 +277,29 @@ async function checkoutBranch(
 		return;
 	}
 
+	if (!options.create) {
+		throw new Error(`Git branch '${branch}' does not exist`);
+	}
+
 	const create = await runCommand("git", ["checkout", "-b", branch], {
 		cwd: config.executionPath,
 	});
 	assertCommandOk("git", ["checkout", "-b", branch], create);
+}
+
+async function ensureCurrentBranch(
+	config: ResolvedProjectConfig,
+	branch: string,
+): Promise<void> {
+	const current = await runCommand("git", ["branch", "--show-current"], {
+		cwd: config.executionPath,
+	});
+	assertCommandOk("git", ["branch", "--show-current"], current);
+	if (current.stdout.trim() !== branch) {
+		throw new Error(
+			`Expected current branch '${branch}' before staging PR changes.`,
+		);
+	}
 }
 
 async function stagedChangesExist(

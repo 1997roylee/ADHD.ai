@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildBugIssueBody } from "../src/services/github";
+import { buildBugIssueBody, issueBranchName } from "../src/services/github";
 
 describe("buildBugIssueBody", () => {
 	it("includes linear and optional pr links", () => {
@@ -12,5 +12,9 @@ describe("buildBugIssueBody", () => {
 		expect(body).toContain("Linear: https://linear.app/acme/issue/ENG-1");
 		expect(body).toContain("PR: https://github.com/acme/repo/pull/10");
 		expect(body).toContain("Stack trace here");
+	});
+
+	it("builds deterministic issue branch names", () => {
+		expect(issueBranchName("ENG-42")).toBe("codex/eng-42");
 	});
 });

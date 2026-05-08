@@ -4,6 +4,8 @@ ADHD.ai is a Harness engineering automatic-workflow hub. It turns ideas, tasks, 
 
 The purpose is simple: create an idea, task, or issue in Linear; ADHD.ai pulls the job, assigns it to the right project workflow, and processes it through specialized agents for planning, implementation, and verification. The workflow can also run as a scheduled cron mission to process variant cases, sweep eligible work, and send notifications about progress, failures, or completed verification.
 
+Production default: run unattended processing with `adhd-ai cron`. Use `adhd-ai run --poll` as a local/dev mode when iterating on workflow behavior.
+
 ## Purpose
 
 - Use Linear as the job board for engineering ideas, tasks, and issues.
@@ -90,6 +92,8 @@ Routing notes:
 ## Commands
 
 ```bash
+bun run src/index.ts setup
+bun run src/index.ts setup --check
 bun run src/index.ts run --project default
 bun run src/index.ts run --all-projects
 bun run src/index.ts run --project default --issue ENG-123
@@ -105,7 +109,19 @@ bun run src/index.ts projects
 adhd-ai run --project default
 adhd-ai cron
 adhd-ai projects
+adhd-ai setup
 ```
+
+## Guided Setup
+
+Run `adhd-ai setup` to answer plain-language prompts and generate local setup files:
+
+- `.env` stores secrets such as `LINEAR_API_KEY`.
+- `adhd-ai.local.config.ts` stores local project, GitHub, Linear routing, and Codex settings.
+
+`adhd-ai.local.config.ts` is loaded before the tracked `adhd-ai.config.ts` and is ignored by git. Existing `adhd-ai.config.ts` and legacy `piv-loop.config.ts` files continue to work.
+
+Run `adhd-ai setup --check` to validate that config loads, the execution path exists, `gh` is authenticated, Codex is available, and configured secrets are not present in tracked config files.
 
 ## Cron Jobs
 
@@ -132,6 +148,11 @@ Supported schedules:
 - `hourly`: `{ frequency: "hourly", every?: 1..24, minute?: 0..59 }`
 - `daily`: `{ frequency: "daily", time: "HH:mm" }`
 - `weekly`: `{ frequency: "weekly", dayOfWeek: "sun"|"mon"|...|"sat", time: "HH:mm" }`
+
+Recommended production pattern:
+
+- define one or more cron jobs for autonomous sweeps (`allProjects: true` or scoped project runs)
+- keep polling commands for local diagnostics and workflow development
 
 ## Email Notifications
 
