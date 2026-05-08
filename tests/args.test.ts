@@ -143,4 +143,20 @@ describe("parseArgs", () => {
 			]),
 		).toThrow("run command cannot use --project with --all-projects");
 	});
+
+	it("parses hello command without name", () => {
+		const parsed = parseArgs(["bun", "adhd-ai", "hello"]);
+		expect(parsed).toEqual({
+			kind: "hello",
+			name: undefined,
+		});
+	});
+
+	it("parses hello command with name", () => {
+		const parsed = parseArgs(["bun", "adhd-ai", "hello", "--name", "Alice"]);
+		expect(parsed).toEqual({
+			kind: "hello",
+			name: "Alice",
+		});
+	});
 });

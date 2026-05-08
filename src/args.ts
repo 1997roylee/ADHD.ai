@@ -6,6 +6,7 @@ export type CliCommand =
 	| { kind: "status"; issueKey: string; projectId: string }
 	| { kind: "projects" }
 	| { kind: "setup"; check: boolean }
+	| { kind: "hello"; name?: string }
 	| { kind: "help" };
 
 export function parseArgs(argv: string[]): CliCommand {
@@ -74,6 +75,12 @@ export function parseArgs(argv: string[]): CliCommand {
 
 	if (command === "projects") {
 		return { kind: "projects" };
+	}
+
+	if (command === "hello") {
+		const args = rest.slice(1);
+		const name = readFlagValue(args, "--name");
+		return { kind: "hello", name };
 	}
 
 	throw new Error(`Unknown command: ${command}`);

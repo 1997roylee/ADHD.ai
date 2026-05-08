@@ -2,6 +2,7 @@
 import { parseArgs } from "./args";
 import {
 	handleCommand,
+	handleHelloCommand,
 	handleSetupCommand,
 	printHelp,
 } from "./commands/handlers";
@@ -23,6 +24,11 @@ async function main(): Promise<void> {
 	const cwd = process.cwd();
 	if (command.kind === "setup") {
 		await handleSetupCommand(command, cwd);
+		return;
+	}
+
+	if (command.kind === "hello") {
+		handleHelloCommand(command);
 		return;
 	}
 

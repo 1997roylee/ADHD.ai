@@ -7,7 +7,10 @@ import { runWorkflow } from "../core/workflow";
 import { runCronScheduler } from "../services/cron";
 
 type SetupCommand = Extract<CliCommand, { kind: "setup" }>;
-type RunnableCommand = Exclude<CliCommand, { kind: "help" } | SetupCommand>;
+type RunnableCommand = Exclude<
+	CliCommand,
+	{ kind: "help" } | { kind: "hello" } | SetupCommand
+>;
 
 export async function handleSetupCommand(
 	command: SetupCommand,
@@ -63,6 +66,11 @@ export async function handleCommand(
 	process.stdout.write(`${JSON.stringify(state, null, 2)}\n`);
 }
 
+export function handleHelloCommand(command: { name?: string }): void {
+	const target = command.name ?? "World";
+	process.stdout.write(`Hello, ${target}!\n`);
+}
+
 export function printHelp(): void {
 	process.stdout.write(
 		`${[
@@ -74,6 +82,7 @@ export function printHelp(): void {
 			"  adhd-ai cron [--job <JOB_ID>]",
 			"  adhd-ai status --project <PROJECT_ID> --issue <LINEAR_KEY>",
 			"  adhd-ai projects",
+			"  adhd-ai hello [--name <NAME>]",
 			"  adhd-ai setup [--check]",
 			"  adhd-ai help",
 			"",
