@@ -711,6 +711,19 @@ async function handlePlanningStage(
 	logger.info(buildIssueJobLogFields(state, "planning"), "Plan completed");
 }
 
+export function fixedBugsForImplementationComment(
+	hasExistingPr: boolean,
+	bugs: RunState["bugs"],
+): RunState["bugs"] {
+	if (!hasExistingPr || bugs.length === 0) {
+		return [];
+	}
+	return bugs.map((bug) => ({
+		title: bug.title,
+		body: bug.body,
+		issueUrl: bug.issueUrl,
+	}));
+}
 async function handleImplementingStage(
 	config: ResolvedProjectConfig,
 	agent: AgentAdapter,
