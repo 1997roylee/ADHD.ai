@@ -13,9 +13,9 @@ export function parseReviewOutcome(text: string): ReviewOutcome {
 	const summary = extractSummary(text);
 	const bugs = extractBugs(text);
 	return {
-		passed: passed && bugs.length === 0,
+		passed,
 		summary,
-		bugs,
+		bugs: passed ? [] : bugs,
 	};
 }
 
