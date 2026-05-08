@@ -7,6 +7,7 @@ import type {
 import {
 	appendCodexUsage,
 	buildIssueJobLogFields,
+	buildRunLeaseOwnerId,
 	isRunStateStaleForRetry,
 	normalizeFailedReviewBugs,
 	resolvePollingSettings,
@@ -157,10 +158,47 @@ describe("stale run retry helpers", () => {
 		expect(keys).toEqual(["ENG-1", "ENG-2", "ENG-3"]);
 	});
 
+	it("does not mark state as stale while another active lease is valid", () => {
+		const nowMs = Date.parse("2026-05-07T12:00:00.000Z");
+		const oldMs = nowMs - 3600000;
+		const leaseExpiresAtMs = nowMs + 60000;
+		const state = createRunState("ENG-11", "implementing", oldMs);
+		state.lease = {
+			ownerId: "worker-a",
+			acquiredAt: new Date(oldMs).toISOString(),
+			heartbeatAt: new Date(nowMs - 1000).toISOString(),
+			expiresAt: new Date(leaseExpiresAtMs).toISOString(),
+		};
+
+		expect(isRunStateStaleForRetry(state, nowMs, 600000)).toBe(false);
+	});
+
+	it("marks state as stale when lease has expired", () => {
+		const nowMs = Date.parse("2026-05-07T12:00:00.000Z");
+		const oldMs = nowMs - 3600000;
+		const state = createRunState("ENG-12", "reviewing", oldMs);
+		state.lease = {
+			ownerId: "worker-a",
+			acquiredAt: new Date(oldMs).toISOString(),
+			heartbeatAt: new Date(oldMs).toISOString(),
+			expiresAt: new Date(nowMs - 1).toISOString(),
+		};
+
+		expect(isRunStateStaleForRetry(state, nowMs, 600000)).toBe(true);
+	});
+
 	it("ignores invalid updatedAt values", () => {
 		const state = createRunState("ENG-9", "planning", Date.now());
 		state.updatedAt = "not-a-date";
 		expect(isRunStateStaleForRetry(state, Date.now(), 1000)).toBe(false);
+	});
+});
+
+describe("buildRunLeaseOwnerId", () => {
+	it("returns a process-scoped lease owner id", () => {
+		const ownerId = buildRunLeaseOwnerId(123456);
+		expect(ownerId).toContain("-123456-");
+		expect(ownerId.split("-").length).toBe(3);
 	});
 });
 

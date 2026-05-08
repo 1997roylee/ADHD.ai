@@ -230,6 +230,13 @@ export interface CodexUsageRecord {
 	recordedAt: string;
 }
 
+export interface RunLease {
+	ownerId: string;
+	acquiredAt: string;
+	heartbeatAt: string;
+	expiresAt: string;
+}
+
 export interface RunState {
 	projectId: string;
 	projectName: string;
@@ -250,6 +257,7 @@ export interface RunState {
 	pullRequest?: PullRequestRef;
 	bugs: BugRecord[];
 	codexUsage?: CodexUsageRecord[];
+	lease?: RunLease;
 	startedAt: string;
 	updatedAt: string;
 	lastError?: string;

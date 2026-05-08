@@ -4,6 +4,8 @@ ADHD.ai is a Harness engineering automatic-workflow hub. It turns ideas, tasks, 
 
 The purpose is simple: create an idea, task, or issue in Linear; ADHD.ai pulls the job, assigns it to the right project workflow, and processes it through specialized agents for planning, implementation, and verification. The workflow can also run as a scheduled cron mission to process variant cases, sweep eligible work, and send notifications about progress, failures, or completed verification.
 
+Production default: run unattended processing with `adhd-ai cron`. Use `adhd-ai run --poll` as a local/dev mode when iterating on workflow behavior.
+
 ## Purpose
 
 - Use Linear as the job board for engineering ideas, tasks, and issues.
@@ -146,6 +148,11 @@ Supported schedules:
 - `hourly`: `{ frequency: "hourly", every?: 1..24, minute?: 0..59 }`
 - `daily`: `{ frequency: "daily", time: "HH:mm" }`
 - `weekly`: `{ frequency: "weekly", dayOfWeek: "sun"|"mon"|...|"sat", time: "HH:mm" }`
+
+Recommended production pattern:
+
+- define one or more cron jobs for autonomous sweeps (`allProjects: true` or scoped project runs)
+- keep polling commands for local diagnostics and workflow development
 
 ## Email Notifications
 
