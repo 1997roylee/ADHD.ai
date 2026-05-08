@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type {
 	PollingConfig,
 	ResolvedProjectConfig,
@@ -8,9 +8,11 @@ import {
 	appendCodexUsage,
 	buildIssueJobLogFields,
 	buildRunLeaseOwnerId,
+	fixedBugsForImplementationComment,
 	isRunStateStaleForRetry,
 	normalizeFailedReviewBugs,
 	parsePlannerDecision,
+	readyPullRequestAfterPassingReview,
 	resolvePollingSettings,
 	routeProjectsForIssueProjectId,
 	selectStaleRunIssueKeys,
@@ -363,6 +365,65 @@ describe("appendCodexUsage", () => {
 	});
 });
 
+describe("readyPullRequestAfterPassingReview", () => {
+	it("marks PR as ready only when review passed", async () => {
+		const markPrReady = mock(async () => true);
+		const updated = await readyPullRequestAfterPassingReview(
+			createProject("default"),
+			{
+				branch: "codex/eng-1",
+				title: "PR",
+				url: "https://github.com/acme/repo/pull/1",
+			},
+			true,
+			{
+				markPrReadyForReview: markPrReady,
+			},
+		);
+
+		expect(updated).toBe(true);
+		expect(markPrReady).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not mark PR as ready when review failed", async () => {
+		const markPrReady = mock(async () => true);
+		const updated = await readyPullRequestAfterPassingReview(
+			createProject("default"),
+			{
+				branch: "codex/eng-1",
+				title: "PR",
+				url: "https://github.com/acme/repo/pull/1",
+			},
+			false,
+			{
+				markPrReadyForReview: markPrReady,
+			},
+		);
+
+		expect(updated).toBe(false);
+		expect(markPrReady).not.toHaveBeenCalled();
+	});
+
+	it("does not mark PR as ready in dry-run mode", async () => {
+		const markPrReady = mock(async () => true);
+		const updated = await readyPullRequestAfterPassingReview(
+			{ ...createProject("default"), dryRun: true },
+			{
+				branch: "codex/eng-1",
+				title: "PR",
+				url: "https://github.com/acme/repo/pull/1",
+			},
+			true,
+			{
+				markPrReadyForReview: markPrReady,
+			},
+		);
+
+		expect(updated).toBe(false);
+		expect(markPrReady).not.toHaveBeenCalled();
+	});
+});
+
 describe("normalizeFailedReviewBugs", () => {
 	it("returns empty list when review passed", () => {
 		expect(
@@ -393,6 +454,33 @@ describe("normalizeFailedReviewBugs", () => {
 		expect(bugs).toHaveLength(1);
 		expect(bugs[0]?.title).toContain("failed without structured bug details");
 		expect(bugs[0]?.body).toContain("Result failed with malformed output.");
+	});
+});
+
+describe("fixedBugsForImplementationComment", () => {
+	it("returns a copy of bugs for fix rounds", () => {
+		const source = [
+			{
+				title: "Bug A",
+				body: "Details",
+				issueUrl: "https://linear.app/roy/issue/ROY-1/bug-a",
+			},
+		];
+		const fixed = fixedBugsForImplementationComment(true, source);
+		expect(fixed).toEqual(source);
+		expect(fixed).not.toBe(source);
+	});
+
+	it("returns empty when no existing PR is present", () => {
+		const fixed = fixedBugsForImplementationComment(false, [
+			{ title: "Bug A", body: "Details" },
+		]);
+		expect(fixed).toEqual([]);
+	});
+
+	it("returns empty when bug list is empty", () => {
+		const fixed = fixedBugsForImplementationComment(true, []);
+		expect(fixed).toEqual([]);
 	});
 });
 

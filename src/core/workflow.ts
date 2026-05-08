@@ -2,6 +2,7 @@ import {
 	commentOnPr,
 	createDraftPrFromWorktree,
 	issueBranchName,
+	markPrReadyForReview,
 	prepareImplementationBranch,
 	updateDraftPrFromWorktree,
 } from "../services/github";
@@ -740,6 +741,10 @@ async function handleImplementingStage(
 
 	const hasExistingPr = Boolean(state.pullRequest?.url);
 	const fixRound = hasExistingPr && state.bugs.length > 0;
+	const fixedBugs = fixedBugsForImplementationComment(
+		hasExistingPr,
+		state.bugs,
+	);
 	const prompt = fixRound
 		? await buildFixPrompt(
 				config.skills.implement,
@@ -799,6 +804,7 @@ async function handleImplementingStage(
 		state.issue.id,
 		buildImplementationComment(state.pullRequest?.url, result.usage, {
 			updated: hasExistingPr,
+			fixedBugs,
 		}),
 	);
 	logger.info(
@@ -872,6 +878,7 @@ async function handleReviewTestingStage(
 		return;
 	}
 
+	await readyPullRequestAfterPassingReview(config, state.pullRequest, true);
 	Object.assign(state, transitionStage(state, "done"));
 	await saveRunState(config.workspacePath, state);
 	await linear.markStage(state.issue.id, "done");
@@ -923,6 +930,21 @@ export function appendCodexUsage(
 			recordedAt: new Date().toISOString(),
 		},
 	];
+}
+
+export async function readyPullRequestAfterPassingReview(
+	config: ResolvedProjectConfig,
+	pullRequest: RunState["pullRequest"],
+	passed: boolean,
+	deps?: {
+		markPrReadyForReview?: typeof markPrReadyForReview;
+	},
+): Promise<boolean> {
+	if (!passed || config.dryRun || !pullRequest) {
+		return false;
+	}
+	const markReady = deps?.markPrReadyForReview ?? markPrReadyForReview;
+	return markReady(config, pullRequest);
 }
 
 export interface PlannerDecision {
