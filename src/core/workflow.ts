@@ -82,6 +82,7 @@ interface WorkflowIssue {
 
 const DEFAULT_PLANNER_COMPLEXITY_SCORE = 4;
 const HUMAN_REVIEW_COMPLEXITY_THRESHOLD = 5;
+const executionPathLockTails = new Map<string, Promise<void>>();
 
 export async function runWorkflow(
 	config: LoadedConfig,
@@ -350,12 +351,30 @@ async function runProjectCycle(
 		projectLogger.info({ cycle }, "No eligible Linear issues found.");
 	}
 
+	if (options.reviewOnly) {
+		await Promise.all(
+			issueQueue.map((issue) =>
+				processIssue(
+					config,
+					notifications,
+					linear,
+					issue,
+					options,
+					polling.staleRunTimeoutMs,
+					buildRunLeaseOwnerId(),
+				),
+			),
+		);
+		return issueQueue.length;
+	}
+
 	for (const issue of issueQueue) {
 		await processIssue(
 			config,
 			notifications,
 			linear,
 			issue,
+			options,
 			polling.staleRunTimeoutMs,
 			buildRunLeaseOwnerId(),
 		);
@@ -370,6 +389,15 @@ async function buildIssueQueueForProjectCycle(
 	linear: LinearClient,
 	polling: PollingSettings,
 ): Promise<{ issueQueue: WorkflowIssue[]; staleRetryCount: number }> {
+	if (options.reviewOnly) {
+		const runStates = await listRunStates(config.workspacePath, config.id);
+		const reviewOnlyIssues = await fetchReviewOnlyIssues(linear, runStates);
+		return {
+			issueQueue: sortIssuesByPriority(reviewOnlyIssues),
+			staleRetryCount: 0,
+		};
+	}
+
 	const assignedIssues = await linear.fetchWork(options.issueArg);
 	if (options.issueArg !== undefined) {
 		return {
@@ -377,6 +405,7 @@ async function buildIssueQueueForProjectCycle(
 				options.issueArg,
 				assignedIssues,
 				[],
+				options,
 			),
 			staleRetryCount: 0,
 		};
@@ -392,6 +421,7 @@ async function buildIssueQueueForProjectCycle(
 			options.issueArg,
 			assignedIssues,
 			staleRetryIssues,
+			options,
 		),
 		staleRetryCount: staleRetryIssues.length,
 	};
@@ -410,11 +440,66 @@ export function selectIssueQueueForCycle(
 	issueArg: string | undefined,
 	assignedIssues: WorkflowIssue[],
 	staleRetryIssues: WorkflowIssue[],
+	options: Pick<RunOptions, "reviewOnly"> = {},
 ): WorkflowIssue[] {
+	if (options.reviewOnly) {
+		return [];
+	}
 	if (issueArg !== undefined) {
 		return assignedIssues;
 	}
 	return buildPrioritizedIssueQueue(assignedIssues, staleRetryIssues);
+}
+
+export function isReviewOnlyEligibleRunState(state: RunState): boolean {
+	return (
+		(state.stage === "pr_created" ||
+			state.stage === "reviewing" ||
+			state.stage === "testing") &&
+		Boolean(state.pullRequest?.url)
+	);
+}
+
+export function selectReviewOnlyIssueKeys(runStates: RunState[]): string[] {
+	return runStates
+		.filter((state) => isReviewOnlyEligibleRunState(state))
+		.map((state) => normalizeIssueKey(state.issue.key));
+}
+
+export function isReviewOnlyExecutableStage(stage: WorkflowStage): boolean {
+	return stage === "pr_created" || stage === "reviewing" || stage === "testing";
+}
+
+export async function withExecutionPathLock<T>(
+	executionPath: string,
+	run: () => Promise<T>,
+): Promise<T> {
+	const currentTail = executionPathLockTails.get(executionPath);
+	const previousTail = currentTail
+		? currentTail.catch(() => undefined)
+		: undefined;
+
+	let release!: () => void;
+	const nextTail = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const queuedTail = previousTail
+		? previousTail.then(() => nextTail)
+		: nextTail;
+	executionPathLockTails.set(executionPath, queuedTail);
+
+	if (previousTail) {
+		await previousTail;
+	}
+
+	try {
+		return await run();
+	} finally {
+		release();
+		if (executionPathLockTails.get(executionPath) === queuedTail) {
+			executionPathLockTails.delete(executionPath);
+		}
+	}
 }
 
 export function shouldRetryRunStage(stage: WorkflowStage): boolean {
@@ -508,11 +593,37 @@ async function fetchStaleIssuesForRetry(
 	return staleIssues;
 }
 
+async function fetchReviewOnlyIssues(
+	linear: LinearClient,
+	runStates: RunState[],
+): Promise<WorkflowIssue[]> {
+	const issueKeys = selectReviewOnlyIssueKeys(runStates);
+	const issues: WorkflowIssue[] = [];
+	for (const key of issueKeys) {
+		const issue = await linear.fetchIssueByIdentifier(key);
+		if (!issue) {
+			continue;
+		}
+		issues.push({
+			id: issue.id,
+			identifier: issue.identifier,
+			title: issue.title,
+			url: issue.url,
+			teamId: issue.teamId,
+			priority: issue.priority,
+			labels: issue.labels,
+			state: issue.state,
+		});
+	}
+	return dedupeIssuesByKey(issues);
+}
+
 async function processIssue(
 	config: ResolvedProjectConfig,
 	notifications: ResolvedNotificationConfig,
 	linear: LinearClient,
 	issue: WorkflowIssue,
+	options: RunOptions,
 	leaseTimeoutMs: number,
 	leaseOwnerId: string,
 ): Promise<void> {
@@ -558,29 +669,35 @@ async function processIssue(
 		"Taking issue job",
 	);
 
-	const leaseAcquired = await tryAcquireRunLease(
-		config.workspacePath,
-		runState,
-		leaseOwnerId,
-		leaseTimeoutMs,
-	);
-	if (!leaseAcquired) {
-		issueLogger.info(
-			{ leaseOwnerId, currentLeaseOwnerId: runState.lease?.ownerId },
-			"Skipping issue because it is already leased by another worker",
-		);
-		return;
-	}
-
+	let leaseAcquired = false;
 	try {
-		await executeIssue(
-			config,
-			notifications,
-			linear,
-			runState,
-			leaseOwnerId,
-			leaseTimeoutMs,
-		);
+		await withExecutionPathLock(config.executionPath, async () => {
+			leaseAcquired = await tryAcquireRunLease(
+				config.workspacePath,
+				runState,
+				leaseOwnerId,
+				leaseTimeoutMs,
+			);
+			if (!leaseAcquired) {
+				issueLogger.info(
+					{ leaseOwnerId, currentLeaseOwnerId: runState.lease?.ownerId },
+					"Skipping issue because it is already leased by another worker",
+				);
+				return;
+			}
+			await executeIssue(
+				config,
+				notifications,
+				linear,
+				runState,
+				options,
+				leaseOwnerId,
+				leaseTimeoutMs,
+			);
+		});
+		if (!leaseAcquired) {
+			return;
+		}
 		issueLogger.info({ stage: runState.stage }, "Issue workflow finished");
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -602,7 +719,9 @@ async function processIssue(
 		);
 		await safeNotifyTaskOutcome(notifications, runState, "blocked", message);
 	} finally {
-		await releaseRunLease(config.workspacePath, runState, leaseOwnerId);
+		if (leaseAcquired) {
+			await releaseRunLease(config.workspacePath, runState, leaseOwnerId);
+		}
 	}
 }
 
@@ -660,6 +779,7 @@ async function executeIssue(
 	notifications: ResolvedNotificationConfig,
 	linear: LinearClient,
 	state: RunState,
+	options: RunOptions,
 	leaseOwnerId: string,
 	leaseTimeoutMs: number,
 ): Promise<void> {
@@ -670,6 +790,9 @@ async function executeIssue(
 		state.stage !== "blocked" &&
 		state.stage !== "human_review"
 	) {
+		if (options.reviewOnly && !isReviewOnlyExecutableStage(state.stage)) {
+			break;
+		}
 		await heartbeatRunLease(
 			config.workspacePath,
 			state,
@@ -967,6 +1090,7 @@ async function handleReviewTestingStage(
 	const outcome = parseReviewOutcome(review.finalMessage || review.stdout);
 	const retryBugs = normalizeFailedReviewBugs(outcome);
 	appendCodexUsage(state, "testing", review.usage);
+	state.reviewSessionId = review.sessionId;
 
 	state.reviewSummary = outcome.summary;
 	state.testingSummary = outcome.summary;

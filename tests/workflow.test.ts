@@ -2,7 +2,11 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { agentChatLogPath } from "../src/core/state";
+import {
+	agentChatLogPath,
+	applyRunLease,
+	isRunLeaseExpired,
+} from "../src/core/state";
 import type {
 	PollingConfig,
 	ResolvedProjectConfig,
@@ -14,6 +18,7 @@ import {
 	buildPrioritizedIssueQueue,
 	buildRunLeaseOwnerId,
 	fixedBugsForImplementationComment,
+	isReviewOnlyExecutableStage,
 	isRunStateStaleForRetry,
 	normalizeFailedReviewBugs,
 	parsePlannerComplexityScore,
@@ -24,9 +29,11 @@ import {
 	routeProjectsForIssueProjectId,
 	runAgentWithChatLog,
 	selectIssueQueueForCycle,
+	selectReviewOnlyIssueKeys,
 	selectStaleRunIssueKeys,
 	shouldRetryRunStage,
 	shouldStopPolling,
+	withExecutionPathLock,
 } from "../src/core/workflow";
 
 describe("resolvePollingSettings", () => {
@@ -199,6 +206,105 @@ describe("buildPrioritizedIssueQueue", () => {
 			staleRetryIssues,
 		);
 		expect(queue.map((issue) => issue.identifier)).toEqual(["ROY-9"]);
+	});
+});
+
+describe("review-only selection", () => {
+	it("selects resumable review-stage run states with an existing PR", () => {
+		const now = Date.parse("2026-05-07T12:00:00.000Z");
+		const runStates: RunState[] = [
+			{
+				...createRunState("ROY-1", "pr_created", now),
+				pullRequest: {
+					branch: "codex/roy-1",
+					title: "PR",
+					url: "https://pr/1",
+				},
+			},
+			{
+				...createRunState("ROY-2", "reviewing", now),
+				pullRequest: {
+					branch: "codex/roy-2",
+					title: "PR",
+					url: "https://pr/2",
+				},
+			},
+			{
+				...createRunState("ROY-3", "testing", now),
+				pullRequest: {
+					branch: "codex/roy-3",
+					title: "PR",
+					url: "https://pr/3",
+				},
+			},
+			{
+				...createRunState("ROY-4", "reviewing", now),
+				pullRequest: { branch: "codex/roy-4", title: "PR" },
+			},
+			createRunState("ROY-5", "implementing", now),
+		];
+
+		expect(selectReviewOnlyIssueKeys(runStates)).toEqual([
+			"ROY-1",
+			"ROY-2",
+			"ROY-3",
+		]);
+	});
+});
+
+describe("isReviewOnlyExecutableStage", () => {
+	it("only allows review-related stages", () => {
+		expect(isReviewOnlyExecutableStage("pr_created")).toBe(true);
+		expect(isReviewOnlyExecutableStage("reviewing")).toBe(true);
+		expect(isReviewOnlyExecutableStage("testing")).toBe(true);
+		expect(isReviewOnlyExecutableStage("implementing")).toBe(false);
+		expect(isReviewOnlyExecutableStage("planning")).toBe(false);
+		expect(isReviewOnlyExecutableStage("received")).toBe(false);
+	});
+});
+
+describe("withExecutionPathLock", () => {
+	it("serializes execution for the same path", async () => {
+		const events: string[] = [];
+
+		await Promise.all([
+			withExecutionPathLock("/tmp/shared", async () => {
+				events.push("a:start");
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				events.push("a:end");
+			}),
+			withExecutionPathLock("/tmp/shared", async () => {
+				events.push("b:start");
+				events.push("b:end");
+			}),
+		]);
+
+		expect(events).toEqual(["a:start", "a:end", "b:start", "b:end"]);
+	});
+
+	it("allows acquiring a fresh lease after queue wait exceeds timeout", async () => {
+		const leaseTimeoutMs = 5;
+		const waitMs = 20;
+		const startedAtMs = Date.now();
+		const state = createRunState("ROY-6", "reviewing", startedAtMs);
+
+		await Promise.all([
+			withExecutionPathLock("/tmp/shared-timeout", async () => {
+				await new Promise((resolve) => setTimeout(resolve, waitMs));
+			}),
+			withExecutionPathLock("/tmp/shared-timeout", async () => {
+				const acquiredAtMs = Date.now();
+				expect(acquiredAtMs - startedAtMs).toBeGreaterThanOrEqual(waitMs);
+
+				const leased = applyRunLease(
+					state,
+					"worker-queued",
+					leaseTimeoutMs,
+					acquiredAtMs,
+				);
+				expect(isRunLeaseExpired(leased, acquiredAtMs)).toBe(false);
+			}),
+		]);
 	});
 });
 

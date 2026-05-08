@@ -220,9 +220,29 @@ describe("loadConfig", () => {
 		}
 	});
 
-	it("loads default daily codebase maintenance cron job", async () => {
+	it("loads default hourly review and daily maintenance cron jobs", async () => {
 		const config = await loadConfig(process.cwd());
 		expect(config.cron.jobs).toEqual([
+			{
+				id: "hourly-pr-review",
+				name: "Hourly PR Review",
+				enabled: true,
+				schedule: {
+					frequency: "hourly",
+					every: 1,
+					minute: 0,
+				},
+				run: {
+					projectId: undefined,
+					issueArg: undefined,
+					allProjects: true,
+					reviewOnly: true,
+					poll: undefined,
+					pollIntervalMs: undefined,
+					maxPollCycles: undefined,
+					exitWhenIdle: undefined,
+				},
+			},
 			{
 				id: "daily-codebase-maintenance",
 				name: "Daily Codebase Maintenance",
@@ -235,6 +255,7 @@ describe("loadConfig", () => {
 					projectId: undefined,
 					issueArg: undefined,
 					allProjects: true,
+					reviewOnly: undefined,
 					poll: true,
 					pollIntervalMs: undefined,
 					maxPollCycles: 1,
@@ -976,6 +997,107 @@ describe("loadConfig", () => {
 		try {
 			await expect(loadConfig(tempDir)).rejects.toThrow(
 				"Cron job 'invalid-run' run cannot use projectId with allProjects",
+			);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it("loads cron run reviewOnly flag", async () => {
+		const tempDir = await mkdtemp(
+			path.join(process.cwd(), ".tmp-config-test-"),
+		);
+		await writeFile(
+			path.join(tempDir, "adhd-ai.config.ts"),
+			[
+				"export default {",
+				"  cron: {",
+				"    jobs: [",
+				"      {",
+				"        id: 'hourly-review',",
+				"        schedule: { frequency: 'hourly', every: 1 },",
+				"        run: { reviewOnly: true, allProjects: true }",
+				"      }",
+				"    ]",
+				"  },",
+				"  projects: [",
+				"    { id: 'default' }",
+				"  ]",
+				"};",
+				"",
+			].join("\n"),
+		);
+
+		try {
+			const config = await loadConfig(tempDir);
+			expect(config.cron.jobs[0]?.run.reviewOnly).toBe(true);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects invalid cron run reviewOnly value", async () => {
+		const tempDir = await mkdtemp(
+			path.join(process.cwd(), ".tmp-config-test-"),
+		);
+		await writeFile(
+			path.join(tempDir, "adhd-ai.config.ts"),
+			[
+				"export default {",
+				"  cron: {",
+				"    jobs: [",
+				"      {",
+				"        id: 'invalid-review-only',",
+				"        schedule: { frequency: 'hourly' },",
+				"        run: { reviewOnly: 'yes' }",
+				"      }",
+				"    ]",
+				"  },",
+				"  projects: [",
+				"    { id: 'default' }",
+				"  ]",
+				"};",
+				"",
+			].join("\n"),
+		);
+
+		try {
+			await expect(loadConfig(tempDir)).rejects.toThrow(
+				"cron.jobs[0].run.reviewOnly must be a boolean",
+			);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects cron run issueArg with reviewOnly", async () => {
+		const tempDir = await mkdtemp(
+			path.join(process.cwd(), ".tmp-config-test-"),
+		);
+		await writeFile(
+			path.join(tempDir, "adhd-ai.config.ts"),
+			[
+				"export default {",
+				"  cron: {",
+				"    jobs: [",
+				"      {",
+				"        id: 'invalid-review-only-target',",
+				"        schedule: { frequency: 'hourly' },",
+				"        run: { reviewOnly: true, issueArg: 'ROY-1' }",
+				"      }",
+				"    ]",
+				"  },",
+				"  projects: [",
+				"    { id: 'default' }",
+				"  ]",
+				"};",
+				"",
+			].join("\n"),
+		);
+
+		try {
+			await expect(loadConfig(tempDir)).rejects.toThrow(
+				"Cron job 'invalid-review-only-target' run cannot use issueArg with reviewOnly",
 			);
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });

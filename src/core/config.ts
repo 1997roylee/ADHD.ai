@@ -340,7 +340,7 @@ function resolveCron(
 	const jobs = override?.jobs;
 	if (jobs === undefined) {
 		return {
-			jobs: [buildDefaultCronJob()],
+			jobs: buildDefaultCronJobs(),
 		};
 	}
 	return {
@@ -348,22 +348,38 @@ function resolveCron(
 	};
 }
 
-function buildDefaultCronJob(): CronJobConfig {
-	return {
-		id: "daily-codebase-maintenance",
-		name: "Daily Codebase Maintenance",
-		enabled: true,
-		schedule: {
-			frequency: "daily",
-			time: "09:00",
+function buildDefaultCronJobs(): CronJobConfig[] {
+	return [
+		{
+			id: "hourly-pr-review",
+			name: "Hourly PR Review",
+			enabled: true,
+			schedule: {
+				frequency: "hourly",
+				every: 1,
+				minute: 0,
+			},
+			run: {
+				allProjects: true,
+				reviewOnly: true,
+			},
 		},
-		run: {
-			allProjects: true,
-			poll: true,
-			maxPollCycles: 1,
-			exitWhenIdle: true,
+		{
+			id: "daily-codebase-maintenance",
+			name: "Daily Codebase Maintenance",
+			enabled: true,
+			schedule: {
+				frequency: "daily",
+				time: "09:00",
+			},
+			run: {
+				allProjects: true,
+				poll: true,
+				maxPollCycles: 1,
+				exitWhenIdle: true,
+			},
 		},
-	};
+	];
 }
 
 function resolveNotifications(
@@ -571,11 +587,22 @@ function resolveCronRun(
 					: invalidCronRunBoolean(
 							`cron.jobs[${index}].run.poll must be a boolean`,
 						);
+	const reviewOnly =
+		run.reviewOnly === undefined
+			? undefined
+			: run.reviewOnly === true
+				? true
+				: run.reviewOnly === false
+					? false
+					: invalidCronRunBoolean(
+							`cron.jobs[${index}].run.reviewOnly must be a boolean`,
+						);
 
 	return {
 		issueArg,
 		projectId,
 		allProjects,
+		reviewOnly,
 		poll,
 		pollIntervalMs,
 		maxPollCycles,
@@ -1000,6 +1027,11 @@ function validateCronRun(jobId: string, run: RunOptions): void {
 	if (run.projectId && run.allProjects) {
 		throw new Error(
 			`Cron job '${jobId}' run cannot use projectId with allProjects`,
+		);
+	}
+	if (run.reviewOnly && run.issueArg) {
+		throw new Error(
+			`Cron job '${jobId}' run cannot use issueArg with reviewOnly`,
 		);
 	}
 }
