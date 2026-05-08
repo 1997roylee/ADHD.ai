@@ -2,6 +2,7 @@ import {
 	commentOnPr,
 	createDraftPrFromWorktree,
 	issueBranchName,
+	markPrReadyForReview,
 	prepareImplementationBranch,
 	updateDraftPrFromWorktree,
 } from "../services/github";
@@ -872,6 +873,7 @@ async function handleReviewTestingStage(
 		return;
 	}
 
+	await readyPullRequestAfterPassingReview(config, state.pullRequest, true);
 	Object.assign(state, transitionStage(state, "done"));
 	await saveRunState(config.workspacePath, state);
 	await linear.markStage(state.issue.id, "done");
@@ -923,6 +925,21 @@ export function appendCodexUsage(
 			recordedAt: new Date().toISOString(),
 		},
 	];
+}
+
+export async function readyPullRequestAfterPassingReview(
+	config: ResolvedProjectConfig,
+	pullRequest: RunState["pullRequest"],
+	passed: boolean,
+	deps?: {
+		markPrReadyForReview?: typeof markPrReadyForReview;
+	},
+): Promise<boolean> {
+	if (!passed || config.dryRun || !pullRequest) {
+		return false;
+	}
+	const markReady = deps?.markPrReadyForReview ?? markPrReadyForReview;
+	return markReady(config, pullRequest);
 }
 
 export interface PlannerDecision {
