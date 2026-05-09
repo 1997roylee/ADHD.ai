@@ -1345,10 +1345,12 @@ async function handleReviewTestingStage(
 	await readyPullRequestAfterPassingReview(config, state.pullRequest, true);
 	Object.assign(state, transitionStage(state, "done"));
 	await saveRunState(config.workspacePath, state);
-	await linear.markStage(state.issue.id, "done");
-	await linear.clearWorkflowStageLabels(state.issue.id);
-	await linear.comment(state.issue.id, "Review/testing passed. Marked done.");
-	await safeNotifyTaskOutcome(notifications, state, "done");
+	await linear.markStage(state.issue.id, "reviewing");
+	await linear.applyStageLabel(state.issue.id, "reviewing");
+	await linear.comment(
+		state.issue.id,
+		"Review/testing passed. PR is ready and issue remains in review until merge.",
+	);
 	logger.info(
 		buildIssueJobLogFields(state, "testing"),
 		"Review/testing completed",
@@ -1393,10 +1395,13 @@ async function handleDoneReviewMergeStage(
 
 	state.pullRequestApprovedAt = new Date().toISOString();
 	await saveRunState(config.workspacePath, state);
+	await linear.markStage(state.issue.id, "done");
+	await linear.clearWorkflowStageLabels(state.issue.id);
 	await linear.comment(
 		state.issue.id,
 		"PR squash-merged after completed review.",
 	);
+	await safeNotifyTaskOutcome(notifications, state, "done");
 }
 
 export function normalizeFailedReviewBugs(
