@@ -55,6 +55,20 @@ interface WorkflowLabelUpdate {
 	removedLabelIds: string[];
 }
 
+const LINEAR_MAX_REQUESTS_PER_HOUR = 2300;
+const LINEAR_REQUEST_INTERVAL_MS = Math.ceil(
+	(60 * 60 * 1000) / LINEAR_MAX_REQUESTS_PER_HOUR,
+);
+const LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS = 60 * 1000;
+const LINEAR_RATE_LIMIT_RETRY_DELAYS_MS = [
+	LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS,
+	2 * LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS,
+	5 * LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS,
+];
+
+let linearRequestTail: Promise<void> = Promise.resolve();
+let nextLinearRequestAt = 0;
+
 export function buildSplitTaskIssueTitle(
 	parentIssueKey: string,
 	taskTitle: string,
@@ -157,6 +171,8 @@ export class LinearClient {
 	> = {};
 	private workflowLabelIds: string[] = [];
 	private workflowLabelsResolved = false;
+	private workflowStatesCache: LinearSdkWorkflowState[] | null = null;
+	private issueLabelsCache: LinearLabelRecord[] | null = null;
 
 	constructor(private readonly config: ResolvedProjectConfig) {
 		this.client = new LinearSdkClient({
@@ -181,10 +197,12 @@ export class LinearClient {
 				: [];
 		}
 
-		const viewer = await this.client.viewer;
-		const assignedIssues = await viewer.assignedIssues({
-			first: this.config.linear.pollLimit,
-		});
+		const viewer = await this.linearRequest(() => this.client.viewer);
+		const assignedIssues = await this.linearRequest(() =>
+			viewer.assignedIssues({
+				first: this.config.linear.pollLimit,
+			}),
+		);
 		const includeLabels = Boolean(this.config.linear.requiredLabel);
 		const issues = await Promise.all(
 			assignedIssues.nodes.map((issue) =>
@@ -221,10 +239,12 @@ export class LinearClient {
 
 	async fetchReviewOnlyWork(): Promise<LinearIssue[]> {
 		await this.ensureResolvedStatusMap();
-		const viewer = await this.client.viewer;
-		const assignedIssues = await viewer.assignedIssues({
-			first: this.config.linear.pollLimit,
-		});
+		const viewer = await this.linearRequest(() => this.client.viewer);
+		const assignedIssues = await this.linearRequest(() =>
+			viewer.assignedIssues({
+				first: this.config.linear.pollLimit,
+			}),
+		);
 		const reviewStateIds = new Set([
 			this.requiredStatusMap().pr_created,
 			this.requiredStatusMap().reviewing,
@@ -276,7 +296,9 @@ export class LinearClient {
 			return;
 		}
 		const stateId = statusMap[stage];
-		await this.client.updateIssue(issueId, { stateId });
+		await this.linearRequest(() =>
+			this.client.updateIssue(issueId, { stateId }),
+		);
 	}
 
 	async markCanceled(issueId: string): Promise<void> {
@@ -288,7 +310,9 @@ export class LinearClient {
 			return;
 		}
 		const stateId = await this.resolveCanceledStateId();
-		await this.client.updateIssue(issueId, { stateId });
+		await this.linearRequest(() =>
+			this.client.updateIssue(issueId, { stateId }),
+		);
 	}
 
 	async updateIssueDetails(
@@ -299,10 +323,12 @@ export class LinearClient {
 		if (this.config.dryRun) {
 			return;
 		}
-		await this.client.updateIssue(issueId, {
-			title,
-			description,
-		});
+		await this.linearRequest(() =>
+			this.client.updateIssue(issueId, {
+				title,
+				description,
+			}),
+		);
 	}
 
 	async createTodoIssueFromPlan(
@@ -330,16 +356,21 @@ export class LinearClient {
 			};
 		}
 
-		const payload = await this.client.createIssue(createInput as never);
+		const payload = await this.linearRequest(() =>
+			this.client.createIssue(createInput as never),
+		);
 		if (!payload.success) {
 			throw new Error(
 				`Failed to create split Linear task '${task.title}' for ${parentIssue.key}.`,
 			);
 		}
 
+		const createdIssueId = payload.issueId;
 		const createdIssue =
-			(await payload.issue) ??
-			(payload.issueId ? await this.client.issue(payload.issueId) : undefined);
+			(await this.linearRequest(() => payload.issue)) ??
+			(createdIssueId
+				? await this.linearRequest(() => this.client.issue(createdIssueId))
+				: undefined);
 		if (!createdIssue?.id || !createdIssue.identifier || !createdIssue.url) {
 			throw new Error(
 				`Split Linear task '${task.title}' was created without required issue fields.`,
@@ -348,9 +379,11 @@ export class LinearClient {
 
 		const labelIds = await this.resolveSplitTaskLabelIds(task.labels);
 		if (labelIds.length > 0) {
-			await this.client.updateIssue(createdIssue.id, {
-				addedLabelIds: labelIds,
-			});
+			await this.linearRequest(() =>
+				this.client.updateIssue(createdIssue.id, {
+					addedLabelIds: labelIds,
+				}),
+			);
 		}
 
 		return {
@@ -382,10 +415,12 @@ export class LinearClient {
 			return;
 		}
 
-		await this.client.updateIssue(issueId, {
-			addedLabelIds,
-			removedLabelIds,
-		});
+		await this.linearRequest(() =>
+			this.client.updateIssue(issueId, {
+				addedLabelIds,
+				removedLabelIds,
+			}),
+		);
 	}
 
 	async clearWorkflowStageLabels(issueId: string): Promise<void> {
@@ -403,16 +438,20 @@ export class LinearClient {
 			return;
 		}
 
-		await this.client.updateIssue(issueId, {
-			removedLabelIds,
-		});
+		await this.linearRequest(() =>
+			this.client.updateIssue(issueId, {
+				removedLabelIds,
+			}),
+		);
 	}
 
 	async comment(issueId: string, body: string): Promise<void> {
 		if (this.config.dryRun) {
 			return;
 		}
-		await this.client.createComment({ issueId, body });
+		await this.linearRequest(() =>
+			this.client.createComment({ issueId, body }),
+		);
 	}
 
 	private async findIssueByIdentifier(
@@ -420,7 +459,7 @@ export class LinearClient {
 	): Promise<LinearIssue | null> {
 		let issue: LinearSdkIssue | undefined;
 		try {
-			issue = await this.client.issue(identifier);
+			issue = await this.linearRequest(() => this.client.issue(identifier));
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message.toLowerCase() : String(error);
@@ -493,10 +532,7 @@ export class LinearClient {
 			return assignedStatus;
 		}
 
-		const workflowStates = await this.client.workflowStates({
-			first: 250,
-		});
-		const states = workflowStates.nodes.filter(
+		const states = (await this.fetchWorkflowStates()).filter(
 			(state) => state.teamId === teamId,
 		);
 		return this.resolveStatusValue("assigned", assignedStatus, states);
@@ -507,10 +543,7 @@ export class LinearClient {
 			return;
 		}
 
-		const workflowStates = await this.client.workflowStates({
-			first: 250,
-		});
-		const states = workflowStates.nodes.filter((state) =>
+		const states = (await this.fetchWorkflowStates()).filter((state) =>
 			this.config.linear.teamId
 				? state.teamId === this.config.linear.teamId
 				: true,
@@ -546,10 +579,7 @@ export class LinearClient {
 			return this.resolvedCanceledStateId;
 		}
 
-		const workflowStates = await this.client.workflowStates({
-			first: 250,
-		});
-		const states = workflowStates.nodes.filter((state) =>
+		const states = (await this.fetchWorkflowStates()).filter((state) =>
 			this.config.linear.teamId
 				? state.teamId === this.config.linear.teamId
 				: true,
@@ -586,12 +616,7 @@ export class LinearClient {
 			return;
 		}
 
-		const labelsConnection = await this.client.issueLabels({
-			first: 250,
-		});
-		const availableLabels = labelsConnection.nodes.map((label) =>
-			this.mapSdkLabelToRecord(label),
-		);
+		const availableLabels = await this.fetchIssueLabels();
 		const resolved: Partial<Record<WorkflowLabelStage, string>> = {};
 
 		for (const [stage, labelNameRaw] of configuredEntries) {
@@ -649,18 +674,21 @@ export class LinearClient {
 	private async createIssueLabel(
 		labelName: string,
 	): Promise<LinearLabelRecord> {
-		const payload = await this.client.createIssueLabel({
-			name: labelName,
-			teamId: this.config.linear.teamId,
-		});
+		const payload = await this.linearRequest(() =>
+			this.client.createIssueLabel({
+				name: labelName,
+				teamId: this.config.linear.teamId,
+			}),
+		);
 		if (!payload.success) {
 			throw new Error(`Failed to create Linear label '${labelName}'.`);
 		}
 
+		const issueLabelId = payload.issueLabelId;
 		const issueLabel =
-			(await payload.issueLabel) ??
-			(payload.issueLabelId
-				? await this.client.issueLabel(payload.issueLabelId)
+			(await this.linearRequest(() => payload.issueLabel)) ??
+			(issueLabelId
+				? await this.linearRequest(() => this.client.issueLabel(issueLabelId))
 				: undefined);
 		if (!issueLabel?.id) {
 			throw new Error(`Linear label '${labelName}' was created without an id.`);
@@ -678,12 +706,7 @@ export class LinearClient {
 			return [];
 		}
 
-		const labelsConnection = await this.client.issueLabels({
-			first: 250,
-		});
-		const availableLabels = labelsConnection.nodes.map((label) =>
-			this.mapSdkLabelToRecord(label),
-		);
+		const availableLabels = await this.fetchIssueLabels();
 		const labelIds: string[] = [];
 
 		for (const labelName of normalizedNames) {
@@ -731,6 +754,34 @@ export class LinearClient {
 		return this.resolvedStatusMap;
 	}
 
+	private async fetchWorkflowStates(): Promise<LinearSdkWorkflowState[]> {
+		if (this.workflowStatesCache) {
+			return this.workflowStatesCache;
+		}
+		const workflowStates = await this.linearRequest(() =>
+			this.client.workflowStates({
+				first: 250,
+			}),
+		);
+		this.workflowStatesCache = workflowStates.nodes;
+		return this.workflowStatesCache;
+	}
+
+	private async fetchIssueLabels(): Promise<LinearLabelRecord[]> {
+		if (this.issueLabelsCache) {
+			return this.issueLabelsCache;
+		}
+		const labelsConnection = await this.linearRequest(() =>
+			this.client.issueLabels({
+				first: 250,
+			}),
+		);
+		this.issueLabelsCache = labelsConnection.nodes.map((label) =>
+			this.mapSdkLabelToRecord(label),
+		);
+		return this.issueLabelsCache;
+	}
+
 	private async isIssueDone(issueId: string): Promise<boolean> {
 		return (
 			(await this.fetchIssueStateId(issueId)) === this.requiredStatusMap().done
@@ -751,7 +802,7 @@ export class LinearClient {
 			);
 		}
 		const labels = includeLabels
-			? (await issue.labels()).nodes.map((label) => ({
+			? (await this.linearRequest(() => issue.labels())).nodes.map((label) => ({
 					id: label.id,
 					name: label.name,
 				}))
@@ -779,11 +830,11 @@ export class LinearClient {
 	}
 
 	private async fetchIssueLabelIds(issueId: string): Promise<string[]> {
-		const issue = await this.client.issue(issueId);
+		const issue = await this.linearRequest(() => this.client.issue(issueId));
 		if (!issue) {
 			return [];
 		}
-		const labels = await issue.labels();
+		const labels = await this.linearRequest(() => issue.labels());
 		return labels.nodes
 			.map((label) => label.id)
 			.filter((id): id is string => Boolean(id));
@@ -792,12 +843,18 @@ export class LinearClient {
 	private async fetchIssueStateId(
 		issueId: string,
 	): Promise<string | undefined> {
-		const issue = await this.client.issue(issueId);
+		const issue = await this.linearRequest(() => this.client.issue(issueId));
 		if (!issue) {
 			return undefined;
 		}
-		const state = await issue.state;
+		const state = await this.linearRequest(() => issue.state);
 		return state?.id;
+	}
+
+	private async linearRequest<T>(
+		operation: () => T | PromiseLike<T>,
+	): Promise<T> {
+		return runLinearRequest(operation);
 	}
 
 	private mapSdkLabelToRecord(label: LinearSdkIssueLabel): LinearLabelRecord {
@@ -807,6 +864,129 @@ export class LinearClient {
 			teamId: label.teamId ?? undefined,
 		};
 	}
+}
+
+async function runLinearRequest<T>(
+	operation: () => T | PromiseLike<T>,
+): Promise<T> {
+	const run = linearRequestTail.then(async () => {
+		const delayMs = nextLinearRequestAt - Date.now();
+		if (delayMs > 0) {
+			await sleep(delayMs);
+		}
+		nextLinearRequestAt = Date.now() + LINEAR_REQUEST_INTERVAL_MS;
+		return retryLinearRequest(operation);
+	});
+	linearRequestTail = run.then(
+		() => undefined,
+		() => undefined,
+	);
+	return run;
+}
+
+async function retryLinearRequest<T>(
+	operation: () => T | PromiseLike<T>,
+): Promise<T> {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return await operation();
+		} catch (error) {
+			if (
+				!isLinearRateLimitError(error) ||
+				attempt >= LINEAR_RATE_LIMIT_RETRY_DELAYS_MS.length
+			) {
+				throw error;
+			}
+			const delayMs =
+				resolveLinearRateLimitDelayMs(error) ??
+				LINEAR_RATE_LIMIT_RETRY_DELAYS_MS[attempt] ??
+				LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS;
+			await sleep(delayMs);
+			nextLinearRequestAt = Math.max(
+				nextLinearRequestAt,
+				Date.now() + LINEAR_REQUEST_INTERVAL_MS,
+			);
+		}
+	}
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isLinearRateLimitError(error: unknown): boolean {
+	const status = readErrorStatus(error);
+	if (status === 429) {
+		return true;
+	}
+	const message = readErrorMessage(error).toLowerCase();
+	return (
+		message.includes("rate limit") ||
+		message.includes("too many requests") ||
+		message.includes("429")
+	);
+}
+
+export function resolveLinearRateLimitDelayMs(
+	error: unknown,
+): number | undefined {
+	const retryAfterMs = readRetryAfterMs(error);
+	if (retryAfterMs !== undefined) {
+		return retryAfterMs;
+	}
+	return isLinearRateLimitError(error)
+		? LINEAR_RATE_LIMIT_FALLBACK_DELAY_MS
+		: undefined;
+}
+
+function readErrorStatus(error: unknown): number | undefined {
+	const record = asRecord(error);
+	const status = record?.status ?? asRecord(record?.response)?.status;
+	return typeof status === "number" ? status : undefined;
+}
+
+function readRetryAfterMs(error: unknown): number | undefined {
+	const headers = asRecord(asRecord(error)?.response)?.headers;
+	const retryAfter = readHeader(headers, "retry-after");
+	if (!retryAfter) {
+		return undefined;
+	}
+	const seconds = Number(retryAfter);
+	if (Number.isFinite(seconds)) {
+		return Math.max(0, seconds * 1000);
+	}
+	const retryAtMs = Date.parse(retryAfter);
+	if (!Number.isNaN(retryAtMs)) {
+		return Math.max(0, retryAtMs - Date.now());
+	}
+	return undefined;
+}
+
+function readHeader(headers: unknown, name: string): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const maybeGet = asRecord(headers)?.get;
+	if (typeof maybeGet === "function") {
+		const value = maybeGet.call(headers, name);
+		return typeof value === "string" ? value : undefined;
+	}
+	const record = asRecord(headers);
+	const direct = record?.[name] ?? record?.[name.toLowerCase()];
+	return typeof direct === "string" ? direct : undefined;
+}
+
+function readErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	return String(error);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
 }
 
 function isLikelyUuid(value: string): boolean {

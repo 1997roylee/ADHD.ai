@@ -227,48 +227,45 @@ describe("loadConfig", () => {
 	});
 
 	it("loads default hourly review and daily maintenance cron jobs", async () => {
-		const config = await loadConfig(process.cwd());
-		expect(config.cron.jobs).toEqual([
-			{
-				id: "hourly-pr-review",
-				name: "Hourly PR Review",
-				enabled: true,
-				schedule: {
-					frequency: "hourly",
-					every: 1,
-					minute: 0,
+		const tempDir = await mkdtemp(
+			path.join(process.cwd(), ".tmp-config-test-"),
+		);
+		try {
+			const config = await loadConfig(tempDir);
+			expect(config.cron.jobs).toEqual([
+				{
+					id: "hourly-pr-review",
+					name: "Hourly PR Review",
+					enabled: true,
+					schedule: {
+						frequency: "hourly",
+						every: 1,
+						minute: 0,
+					},
+					run: {
+						allProjects: true,
+						reviewOnly: true,
+					},
 				},
-				run: {
-					projectId: undefined,
-					issueArg: undefined,
-					allProjects: true,
-					reviewOnly: true,
-					poll: undefined,
-					pollIntervalMs: undefined,
-					maxPollCycles: undefined,
-					exitWhenIdle: undefined,
+				{
+					id: "daily-codebase-maintenance",
+					name: "Daily Codebase Maintenance",
+					enabled: true,
+					schedule: {
+						frequency: "daily",
+						time: "09:00",
+					},
+					run: {
+						allProjects: true,
+						poll: true,
+						maxPollCycles: 1,
+						exitWhenIdle: true,
+					},
 				},
-			},
-			{
-				id: "daily-codebase-maintenance",
-				name: "Daily Codebase Maintenance",
-				enabled: true,
-				schedule: {
-					frequency: "daily",
-					time: "09:00",
-				},
-				run: {
-					projectId: undefined,
-					issueArg: undefined,
-					allProjects: true,
-					reviewOnly: undefined,
-					poll: true,
-					pollIntervalMs: undefined,
-					maxPollCycles: 1,
-					exitWhenIdle: true,
-				},
-			},
-		]);
+			]);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it("loads notification settings from RESEND env vars", async () => {

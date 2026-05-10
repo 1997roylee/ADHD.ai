@@ -7,6 +7,8 @@ import {
 	buildWorkflowLabelUpdate,
 	isIssueInConfiguredProject,
 	isLinearIssueReviewOnlyCandidate,
+	isLinearRateLimitError,
+	resolveLinearRateLimitDelayMs,
 	resolveSplitTaskTeamId,
 	shouldSkipDoneStageRegression,
 	sortIssuesByPriority,
@@ -275,6 +277,37 @@ describe("buildTodoIssueFromPlanInput", () => {
 		expect(input.parentId).toBe("lin_parent");
 		expect(input.projectId).toBe("proj_parent");
 		expect("assigneeId" in input).toBe(false);
+	});
+});
+
+describe("Linear rate limit handling", () => {
+	it("detects Linear rate limit errors by status and message", () => {
+		expect(isLinearRateLimitError({ status: 429 })).toBe(true);
+		expect(
+			isLinearRateLimitError(
+				new Error(
+					"Rate limit exceeded. Only 2500 requests are allowed per 1 hour",
+				),
+			),
+		).toBe(true);
+		expect(isLinearRateLimitError(new Error("not found"))).toBe(false);
+	});
+
+	it("uses retry-after header when present", () => {
+		const error = {
+			response: {
+				headers: {
+					"retry-after": "3",
+				},
+			},
+		};
+
+		expect(resolveLinearRateLimitDelayMs(error)).toBe(3000);
+	});
+
+	it("falls back to a bounded delay for Linear rate limits", () => {
+		expect(resolveLinearRateLimitDelayMs({ status: 429 })).toBe(60_000);
+		expect(resolveLinearRateLimitDelayMs(new Error("boom"))).toBeUndefined();
 	});
 });
 
