@@ -45,9 +45,6 @@ import {
 import { type ReviewOutcome, parseReviewOutcome } from "./review";
 import {
 	appendProjectErrorLog,
-	applyRunLease,
-	clearRunLease,
-	hasRunLeaseConflict,
 	isRunLeaseExpired,
 	listRunStates,
 	loadRunState,
@@ -56,6 +53,18 @@ import {
 	saveRunState,
 	transitionStage,
 } from "./state";
+import {
+	buildRunLeaseOwnerId,
+	heartbeatRunLease,
+	releaseRunLease,
+	tryAcquireRunLease,
+} from "./workflow-lease";
+import {
+	buildPrioritizedIssueQueue as buildPrioritizedIssueQueueHelper,
+	dedupeIssuesByKey,
+} from "./workflow-queue";
+
+export { buildRunLeaseOwnerId } from "./workflow-lease";
 import type {
 	CodexUsageRecord,
 	IssueRef,
@@ -452,7 +461,7 @@ export function buildPrioritizedIssueQueue(
 	staleRetryIssues: WorkflowIssue[],
 ): WorkflowIssue[] {
 	return sortIssuesByPriority(
-		dedupeIssuesByKey([...assignedIssues, ...staleRetryIssues]),
+		buildPrioritizedIssueQueueHelper(assignedIssues, staleRetryIssues),
 	);
 }
 
@@ -652,20 +661,6 @@ export function selectStaleRunIssueKeys(
 	return runStates
 		.filter((state) => isRunStateStaleForRetry(state, nowMs, timeoutMs))
 		.map((state) => normalizeIssueKey(state.issue.key));
-}
-
-function dedupeIssuesByKey(issues: WorkflowIssue[]): WorkflowIssue[] {
-	const seen = new Set<string>();
-	const unique: WorkflowIssue[] = [];
-	for (const issue of issues) {
-		const key = normalizeIssueKey(issue.identifier);
-		if (seen.has(key)) {
-			continue;
-		}
-		seen.add(key);
-		unique.push(issue);
-	}
-	return unique;
 }
 
 async function fetchStaleIssuesForRetry(
@@ -1871,55 +1866,136 @@ function extractFirstJsonObject(input: string): string | null {
 	return null;
 }
 
-export function buildRunLeaseOwnerId(nowMs = Date.now()): string {
-	return `${process.pid}-${nowMs}-${Math.floor(Math.random() * 100000)}`;
-}
-
-async function tryAcquireRunLease(
-	cwd: string,
-	state: RunState,
-	leaseOwnerId: string,
-	leaseTimeoutMs: number,
-): Promise<boolean> {
-	const nowMs = Date.now();
-	if (hasRunLeaseConflict(state, leaseOwnerId, nowMs)) {
-		return false;
-	}
-	Object.assign(
-		state,
-		applyRunLease(state, leaseOwnerId, leaseTimeoutMs, nowMs),
-	);
-	await saveRunState(cwd, state);
-	return true;
-}
-
-async function heartbeatRunLease(
-	cwd: string,
-	state: RunState,
-	leaseOwnerId: string,
-	leaseTimeoutMs: number,
+async function safeLinearComment(
+	linear: LinearClient,
+	issueId: string,
+	body: string,
 ): Promise<void> {
-	const nowMs = Date.now();
-	if (hasRunLeaseConflict(state, leaseOwnerId, nowMs)) {
-		throw new Error(
-			"Run lease is no longer owned by the active worker; stopping issue execution.",
+	const runLogger = logger.child({ issueId });
+	try {
+		await linear.comment(issueId, body);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to add Linear comment",
 		);
 	}
-	Object.assign(
-		state,
-		applyRunLease(state, leaseOwnerId, leaseTimeoutMs, nowMs),
-	);
-	await saveRunState(cwd, state);
 }
 
-async function releaseRunLease(
-	cwd: string,
+async function safePrComment(
+	config: ResolvedProjectConfig,
 	state: RunState,
-	leaseOwnerId: string,
+	body: string,
 ): Promise<void> {
-	if (!state.lease?.ownerId || state.lease.ownerId !== leaseOwnerId) {
+	if (!state.pullRequest) {
 		return;
 	}
-	Object.assign(state, clearRunLease(state));
-	await saveRunState(cwd, state);
+	const runLogger = logger.child({
+		projectId: state.projectId,
+		issueKey: state.issue.key,
+		pr: state.pullRequest.url ?? state.pullRequest.number,
+	});
+	try {
+		runLogger.info(
+			{
+				commentBody: body,
+				runState: state,
+			},
+			"Adding GitHub PR comment",
+		);
+		await commentOnPr(config, state.pullRequest, body);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to add GitHub PR comment",
+		);
+	}
+}
+
+async function safeSquashMergePullRequest(
+	config: ResolvedProjectConfig,
+	state: RunState,
+): Promise<boolean> {
+	if (!state.pullRequest) {
+		return false;
+	}
+	const runLogger = logger.child({
+		projectId: state.projectId,
+		issueKey: state.issue.key,
+		pr: state.pullRequest.url ?? state.pullRequest.number,
+	});
+	try {
+		return await squashMergePullRequest(config, state.pullRequest);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to squash-merge GitHub PR",
+		);
+		return false;
+	}
+}
+
+async function safeNotifyTaskOutcome(
+	notifications: ResolvedNotificationConfig,
+	state: RunState,
+	outcome: "done" | "blocked",
+	errorMessage?: string,
+): Promise<void> {
+	const runLogger = logger.child({
+		projectId: state.projectId,
+		issueKey: state.issue.key,
+		outcome,
+	});
+	try {
+		await sendTaskOutcomeEmail(
+			notifications.email,
+			state,
+			outcome,
+			errorMessage,
+		);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to send task outcome email notification",
+		);
+	}
+}
+
+async function safeNotifyHumanReviewRequired(
+	notifications: ResolvedNotificationConfig,
+	state: RunState,
+	complexityScore: number,
+	reason: string,
+): Promise<void> {
+	const runLogger = logger.child({
+		projectId: state.projectId,
+		issueKey: state.issue.key,
+		outcome: "human_review_required",
+	});
+	try {
+		await sendHumanReviewRequiredEmail(notifications.email, state, {
+			complexityScore,
+			reason,
+		});
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to send human review required email notification",
+		);
+	}
+}
+
+async function safeLinearMoveToCanceled(
+	linear: LinearClient,
+	issueId: string,
+): Promise<void> {
+	const runLogger = logger.child({ issueId, stage: "canceled" });
+	try {
+		await linear.markCanceled(issueId);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to move Linear issue to Canceled",
+		);
+	}
 }
