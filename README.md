@@ -54,7 +54,7 @@ bun run changeset
 # apply version updates, run quality gates, and publish
 bun run publish:version
 
-# push version commit and tags after publish
+# push release commit and tags after publish
 git push --follow-tags
 
 # inspect run state for one issue

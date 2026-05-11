@@ -23,6 +23,8 @@ export async function runPublishVersion(
 		{ command: "bun", args: ["run", "typecheck"] },
 		{ command: "bun", args: ["test"] },
 		{ command: "bun", args: ["run", "build"] },
+		{ command: "git", args: ["add", "-A"] },
+		{ command: "git", args: ["commit", "-m", "chore: release versions"] },
 		{ command: "bun", args: ["run", "changeset", "publish"] },
 	];
 
