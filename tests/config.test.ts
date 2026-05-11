@@ -628,6 +628,41 @@ describe("loadConfig", () => {
 		}
 	});
 
+	it("preserves global codex docker image with project-level enabled override", async () => {
+		process.env.CODEX_DOCKER_ENABLED = "";
+		process.env.CODEX_DOCKER_IMAGE = "global-codex:latest";
+		const tempDir = await mkdtemp(
+			path.join(process.cwd(), ".tmp-config-test-"),
+		);
+		await writeFile(
+			path.join(tempDir, "adhd-ai.config.ts"),
+			[
+				"export default {",
+				"  codex: {",
+				"    docker: { image: 'root-codex:latest' }",
+				"  },",
+				"  projects: [",
+				"    {",
+				"      id: 'default',",
+				"      codex: { docker: { enabled: true } }",
+				"    }",
+				"  ]",
+				"};",
+				"",
+			].join("\n"),
+		);
+
+		try {
+			const loaded = await loadConfig(tempDir);
+			expect(loaded.projects[0]?.codex.docker).toEqual({
+				enabled: true,
+				image: "root-codex:latest",
+			});
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it("loads global and stage-specific codex reasoning effort from env", async () => {
 		process.env.CODEX_REASONING_EFFORT = "medium";
 		process.env.CODEX_REASONING_EFFORT_PLAN = "high";
