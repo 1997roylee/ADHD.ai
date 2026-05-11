@@ -1,4 +1,4 @@
-import { createAgentAdapter } from "../integrations/agent-adapters";
+import { createAgentAdapter } from "../../integrations/agent-adapters";
 import {
 	commentOnPr,
 	createDraftPrFromWorktree,
@@ -9,12 +9,12 @@ import {
 	prepareImplementationBranch,
 	squashMergePullRequest,
 	updateDraftPrFromWorktree,
-} from "../integrations/github";
-import { LinearClient } from "../integrations/linear";
+} from "../../integrations/github";
+import { LinearClient } from "../../integrations/linear";
 import {
 	sendHumanReviewRequiredEmail,
 	sendTaskOutcomeEmail,
-} from "../integrations/notifications";
+} from "../../integrations/notifications";
 import type { WorkflowRuntime } from "./workflow.types";
 export type { WorkflowLinearClient, WorkflowRuntime } from "./workflow.types";
 
@@ -23,7 +23,7 @@ export function createWorkflowRuntime(
 ): WorkflowRuntime {
 	return {
 		createLinearClient: (config) => new LinearClient(config),
-		createAgentAdapter,
+		createAgentAdapter: createAgentAdapter,
 		ensureBaseBranchFresh,
 		findOpenPullRequestForIssue,
 		getPullRequestMergeStatus,
@@ -33,8 +33,8 @@ export function createWorkflowRuntime(
 		commentOnPr,
 		markPrReadyForReview,
 		squashMergePullRequest,
-		sendTaskOutcomeEmail,
-		sendHumanReviewRequiredEmail,
+		sendTaskOutcomeEmail: sendTaskOutcomeEmail,
+		sendHumanReviewRequiredEmail: sendHumanReviewRequiredEmail,
 		...overrides,
 	};
 }

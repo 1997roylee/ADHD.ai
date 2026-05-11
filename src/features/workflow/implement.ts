@@ -1,10 +1,63 @@
-import type { AgentAdapter } from "../integrations/agent-adapters";
-import { issueBranchName } from "../integrations/github";
+import type {
+	CodexUsageRecord,
+	ResolvedProjectConfig,
+	RunState,
+	WorkflowStage,
+} from "../../core/types";
+import type { AgentAdapter } from "../../integrations/agent-adapters";
+import {
+	createDraftPrFromWorktree,
+	issueBranchName,
+	prepareImplementationBranch,
+	updateDraftPrFromWorktree,
+} from "../../integrations/github";
+import { buildImplementationComment } from "../../utils/comments";
 import { buildFixPrompt, buildImplementPrompt } from "../skills/prompts";
-import { buildImplementationComment } from "../utils/comments";
-import { logger } from "../utils/logger";
-import type { ResolvedProjectConfig, RunState, WorkflowStage } from "./types";
-import type { WorkflowLinearClient, WorkflowRuntime } from "./workflow-runtime";
+
+interface HandleImplementingStageDeps {
+	runAgentWithChatLog: (input: {
+		workspacePath: string;
+		projectId: string;
+		issue: RunState["issue"];
+		agentRole: "implementing";
+		skillPath: string;
+		prompt: string;
+		invoke: () => Promise<{
+			finalMessage: string;
+			stdout: string;
+			sessionId?: string;
+			usage?: {
+				inputTokens?: number;
+				outputTokens?: number;
+				totalTokens?: number;
+			};
+		}>;
+	}) => Promise<{
+		finalMessage: string;
+		stdout: string;
+		sessionId?: string;
+		usage?: {
+			inputTokens?: number;
+			outputTokens?: number;
+			totalTokens?: number;
+		};
+	}>;
+	appendCodexUsage: (
+		state: RunState,
+		stage: CodexUsageRecord["stage"],
+		usage:
+			| { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+			| undefined,
+	) => void;
+	saveRunState: (cwd: string, state: RunState) => Promise<void>;
+	transitionStage: (state: RunState, to: WorkflowStage) => RunState;
+	loggerInfo: (fields: Record<string, unknown>, message: string) => void;
+	buildIssueJobLogFields: (
+		state: RunState,
+		stage: string,
+		options?: { resumed?: boolean },
+	) => Record<string, unknown>;
+}
 
 export function fixedBugsForImplementationComment(
 	hasExistingPr: boolean,
@@ -23,63 +76,25 @@ export function fixedBugsForImplementationComment(
 export async function handleImplementingStage(
 	config: ResolvedProjectConfig,
 	agent: AgentAdapter,
-	linear: WorkflowLinearClient,
-	state: RunState,
-	runtime: WorkflowRuntime,
-	deps: {
-		runAgentWithChatLog: (input: {
-			workspacePath: string;
-			projectId: string;
-			issue: RunState["issue"];
-			agentRole: "implementing";
-			skillPath: string;
-			prompt: string;
-			invoke: () => Promise<{
-				finalMessage: string;
-				stdout: string;
-				sessionId?: string;
-				usage?: {
-					inputTokens?: number;
-					outputTokens?: number;
-					totalTokens?: number;
-				};
-			}>;
-		}) => Promise<{
-			finalMessage: string;
-			stdout: string;
-			usage?: {
-				inputTokens?: number;
-				outputTokens?: number;
-				totalTokens?: number;
-			};
-		}>;
-		appendCodexUsage: (
-			state: RunState,
-			stage: "implementing",
-			usage:
-				| { inputTokens?: number; outputTokens?: number; totalTokens?: number }
-				| undefined,
-		) => void;
-		transitionStage: (state: RunState, to: WorkflowStage) => RunState;
-		saveRunState: (workspacePath: string, state: RunState) => Promise<void>;
-		buildIssueJobLogFields: (
-			state: RunState,
-			stage: string,
-			options?: { resumed?: boolean },
-		) => Record<string, unknown>;
+	linear: {
+		markStage: (issueId: string, stage: string) => Promise<void>;
+		applyStageLabel: (issueId: string, stage: string) => Promise<void>;
+		comment: (issueId: string, body: string) => Promise<void>;
 	},
+	state: RunState,
+	deps: HandleImplementingStageDeps,
 ): Promise<void> {
 	if (!state.codexSessionId) {
 		throw new Error("Missing codex session id for implement step");
 	}
 	const codexSessionId = state.codexSessionId;
-	logger.info(
+	deps.loggerInfo(
 		deps.buildIssueJobLogFields(state, "implementing"),
 		"Implementing issue",
 	);
 
 	if (!config.dryRun) {
-		const preparedBranch = await runtime.prepareImplementationBranch(
+		const preparedBranch = await prepareImplementationBranch(
 			config,
 			state.issue.key,
 			state.pullRequest,
@@ -132,7 +147,7 @@ export async function handleImplementingStage(
 				url: "https://example.invalid/dry-run",
 			};
 		} else {
-			state.pullRequest = await runtime.createDraftPrFromWorktree(
+			state.pullRequest = await createDraftPrFromWorktree(
 				config,
 				state.issue.key,
 				state.issue.title,
@@ -142,13 +157,13 @@ export async function handleImplementingStage(
 		if (!state.pullRequest?.branch) {
 			throw new Error("Missing pull request branch for feedback pass");
 		}
-		const updated = await runtime.updateDraftPrFromWorktree(
+		const updated = await updateDraftPrFromWorktree(
 			config,
 			state.pullRequest.branch,
 			state.issue.key,
 		);
 		if (!updated) {
-			logger.info(
+			deps.loggerInfo(
 				deps.buildIssueJobLogFields(state, "implementing"),
 				"No code changes after feedback; skipping PR update",
 			);
@@ -168,7 +183,7 @@ export async function handleImplementingStage(
 			fixedBugs,
 		}),
 	);
-	logger.info(
+	deps.loggerInfo(
 		deps.buildIssueJobLogFields(state, "implementing"),
 		hasExistingPr
 			? "Implementation feedback pass completed"
