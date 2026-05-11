@@ -12,6 +12,8 @@ This repository orchestrates multi-project agent workflows. Keep behavior projec
 6. Keep CLI parsing and dispatch in `src/args.ts` and `src/index.ts`.
 7. Do not construct raw shell command strings in workflow logic; use helper modules.
 8. Keep TypeScript files under 250 lines; split files before they grow beyond that limit.
+   - Temporary exception: `src/core/workflow-orchestrator.ts` may exceed 250 lines during the ROY-97 refactor stabilization window, but no new helper logic should be added there.
+   - Any follow-up workflow changes must continue extracting logic into focused modules until the orchestrator can be removed or reduced under the limit.
 9. Keep review parsing contract stable:
    - `RESULT: PASS|FAIL`
    - `SUMMARY: ...`
