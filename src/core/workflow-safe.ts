@@ -1,19 +1,14 @@
-import { commentOnPr, squashMergePullRequest } from "../services/github";
-import type { LinearClient } from "../services/linear";
-import {
-	sendHumanReviewRequiredEmail,
-	sendTaskOutcomeEmail,
-} from "../services/notifications";
 import { logger, normalizeError } from "../utils/logger";
-import type { IntegrationWrapperDeps } from "./integration-wrappers.types";
 import type {
 	ResolvedNotificationConfig,
 	ResolvedProjectConfig,
 	RunState,
 } from "./types";
+import type { WorkflowLinearClient, WorkflowRuntime } from "./workflow-runtime";
+import { createWorkflowRuntime } from "./workflow-runtime";
 
 export async function safeLinearComment(
-	linear: Pick<LinearClient, "comment">,
+	linear: WorkflowLinearClient,
 	issueId: string,
 	body: string,
 ): Promise<void> {
@@ -28,26 +23,11 @@ export async function safeLinearComment(
 	}
 }
 
-export async function safeLinearMoveToCanceled(
-	linear: Pick<LinearClient, "markCanceled">,
-	issueId: string,
-): Promise<void> {
-	const runLogger = logger.child({ issueId, stage: "canceled" });
-	try {
-		await linear.markCanceled(issueId);
-	} catch (error) {
-		runLogger.error(
-			{ err: normalizeError(error) },
-			"Failed to move Linear issue to Canceled",
-		);
-	}
-}
-
 export async function safePrComment(
 	config: ResolvedProjectConfig,
 	state: RunState,
 	body: string,
-	deps: IntegrationWrapperDeps = {},
+	runtime: WorkflowRuntime,
 ): Promise<void> {
 	if (!state.pullRequest) {
 		return;
@@ -57,7 +37,6 @@ export async function safePrComment(
 		issueKey: state.issue.key,
 		pr: state.pullRequest.url ?? state.pullRequest.number,
 	});
-	const comment = deps.commentOnPr ?? commentOnPr;
 	try {
 		runLogger.info(
 			{
@@ -66,7 +45,7 @@ export async function safePrComment(
 			},
 			"Adding GitHub PR comment",
 		);
-		await comment(config, state.pullRequest, body);
+		await runtime.commentOnPr(config, state.pullRequest, body);
 	} catch (error) {
 		runLogger.error(
 			{ err: normalizeError(error) },
@@ -78,7 +57,7 @@ export async function safePrComment(
 export async function safeSquashMergePullRequest(
 	config: ResolvedProjectConfig,
 	state: RunState,
-	deps: IntegrationWrapperDeps = {},
+	runtime: WorkflowRuntime,
 ): Promise<boolean> {
 	if (!state.pullRequest) {
 		return false;
@@ -88,9 +67,8 @@ export async function safeSquashMergePullRequest(
 		issueKey: state.issue.key,
 		pr: state.pullRequest.url ?? state.pullRequest.number,
 	});
-	const merge = deps.squashMergePullRequest ?? squashMergePullRequest;
 	try {
-		return await merge(config, state.pullRequest);
+		return await runtime.squashMergePullRequest(config, state.pullRequest);
 	} catch (error) {
 		runLogger.error(
 			{ err: normalizeError(error) },
@@ -105,16 +83,20 @@ export async function safeNotifyTaskOutcome(
 	state: RunState,
 	outcome: "done" | "blocked",
 	errorMessage?: string,
-	deps: IntegrationWrapperDeps = {},
+	runtime: WorkflowRuntime = createWorkflowRuntime(),
 ): Promise<void> {
 	const runLogger = logger.child({
 		projectId: state.projectId,
 		issueKey: state.issue.key,
 		outcome,
 	});
-	const notify = deps.sendTaskOutcomeEmail ?? sendTaskOutcomeEmail;
 	try {
-		await notify(notifications.email, state, outcome, errorMessage);
+		await runtime.sendTaskOutcomeEmail(
+			notifications.email,
+			state,
+			outcome,
+			errorMessage,
+		);
 	} catch (error) {
 		runLogger.error(
 			{ err: normalizeError(error) },
@@ -128,17 +110,15 @@ export async function safeNotifyHumanReviewRequired(
 	state: RunState,
 	complexityScore: number,
 	reason: string,
-	deps: IntegrationWrapperDeps = {},
+	runtime: WorkflowRuntime,
 ): Promise<void> {
 	const runLogger = logger.child({
 		projectId: state.projectId,
 		issueKey: state.issue.key,
 		outcome: "human_review_required",
 	});
-	const notify =
-		deps.sendHumanReviewRequiredEmail ?? sendHumanReviewRequiredEmail;
 	try {
-		await notify(notifications.email, state, {
+		await runtime.sendHumanReviewRequiredEmail(notifications.email, state, {
 			complexityScore,
 			reason,
 		});
@@ -146,6 +126,21 @@ export async function safeNotifyHumanReviewRequired(
 		runLogger.error(
 			{ err: normalizeError(error) },
 			"Failed to send human review required email notification",
+		);
+	}
+}
+
+export async function safeLinearMoveToCanceled(
+	linear: WorkflowLinearClient,
+	issueId: string,
+): Promise<void> {
+	const runLogger = logger.child({ issueId, stage: "canceled" });
+	try {
+		await linear.markCanceled(issueId);
+	} catch (error) {
+		runLogger.error(
+			{ err: normalizeError(error) },
+			"Failed to move Linear issue to Canceled",
 		);
 	}
 }
