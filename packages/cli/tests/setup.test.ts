@@ -380,6 +380,11 @@ function loadedConfig({
 					useGhCli: true,
 					defaultBugLabel: "bug",
 				},
+				server: {
+					database: {
+						databasePath: "/tmp/demo/.piv-loop/config/server-db",
+					},
+				},
 				workflow: {
 					issueConcurrency: 1,
 				},

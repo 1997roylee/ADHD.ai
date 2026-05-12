@@ -87,6 +87,11 @@ export function project(
 			autoCreateLabels: false,
 		},
 		github: { useGhCli: false, defaultBugLabel: "bug" },
+		server: {
+			database: {
+				databasePath: ".piv-loop/config/server-db",
+			},
+		},
 		codex: { binary: "codex", streamLogs: false },
 		skills: {
 			root: "skills",

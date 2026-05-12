@@ -60,6 +60,35 @@ function mergeRuntime(
 		project.workspacePath ??
 		rootDefaults.workspacePath ??
 		base.executionPath;
+	const skillRoot =
+		project.skills?.root ?? rootDefaults.skills?.root ?? base.skills.root;
+	const mergedSkills = {
+		plan: project.skills?.plan ?? rootDefaults.skills?.plan ?? base.skills.plan,
+		implement:
+			project.skills?.implement ??
+			rootDefaults.skills?.implement ??
+			base.skills.implement,
+		reviewTest:
+			project.skills?.reviewTest ??
+			rootDefaults.skills?.reviewTest ??
+			base.skills.reviewTest,
+		githubComment:
+			project.skills?.githubComment ??
+			rootDefaults.skills?.githubComment ??
+			base.skills.githubComment,
+	};
+	const mergedAutoSelect = resolveAutoSelectConfig(
+		configCwd,
+		base.skills.autoSelect,
+		rootDefaults.skills?.autoSelect,
+		project.skills?.autoSelect,
+	);
+	const mergedServerDatabasePath = normalizeOptionalPath(
+		project.server?.database?.databasePath ??
+			rootDefaults.server?.database?.databasePath ??
+			base.server.database.databasePath,
+		configCwd,
+	);
 	return {
 		workspacePath,
 		executionPath,
@@ -87,6 +116,12 @@ function mergeRuntime(
 			...base.github,
 			...(rootDefaults.github ?? {}),
 			...(project.github ?? {}),
+		},
+		server: {
+			database: {
+				databasePath:
+					mergedServerDatabasePath ?? base.server.database.databasePath,
+			},
 		},
 		codex: {
 			...base.codex,
