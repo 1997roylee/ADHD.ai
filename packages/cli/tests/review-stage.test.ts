@@ -75,6 +75,8 @@ describe("handleReviewTestingStage", () => {
 		const runRoles: string[] = [];
 
 		const agent = {
+			runPlan: async () => ({ finalMessage: "", stdout: "" }),
+			resume: async () => ({ finalMessage: "", stdout: "" }),
 			runReview: async () => ({
 				finalMessage: "RESULT: PASS\nSUMMARY: Looks good.\nBUGS_JSON:\n[]",
 				stdout: "",
@@ -125,6 +127,8 @@ describe("handleReviewTestingStage", () => {
 		const prComments: string[] = [];
 
 		const agent = {
+			runPlan: async () => ({ finalMessage: "", stdout: "" }),
+			resume: async () => ({ finalMessage: "", stdout: "" }),
 			runReview: async () => ({
 				finalMessage: "RESULT: PASS\nSUMMARY: Looks good.\nBUGS_JSON:\n[]",
 				stdout: "",
