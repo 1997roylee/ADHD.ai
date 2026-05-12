@@ -1,4 +1,6 @@
-export default function HomePage(): JSX.Element {
+import type { ReactElement } from "react";
+
+export default function HomePage(): ReactElement {
 	return (
 		<main
 			style={{

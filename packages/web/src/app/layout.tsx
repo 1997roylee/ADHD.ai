@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { AppProviders } from "@/components/providers/app-providers";
 
@@ -14,7 +14,7 @@ type Props = {
 	children: ReactNode;
 };
 
-export default function RootLayout({ children }: Props): JSX.Element {
+export default function RootLayout({ children }: Props): ReactElement {
 	return (
 		<html lang="en">
 			<body>
