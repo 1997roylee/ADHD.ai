@@ -1,23 +1,37 @@
 # ADHD.ai Agent Entry
 
-This repository orchestrates multi-project agent workflows. Keep behavior project-agnostic and avoid coupling logic to a single workspace.
+This repository orchestrates multi-project agent workflows across CLI, server,
+and web UI packages. Keep behavior project-agnostic and avoid coupling logic to a
+single workspace.
 
-## Must-Follow Rules
+## Shared Must-Follow Rules
 
-1. Before executing agent workflow work, pull the latest code from `main` so runs start from current repository state. Fetch `origin/main`, update the local `main` with a fast-forward-only pull, and do not proceed from stale code.
-2. Resolve env vars and config only in `packages/cli/src/core/config.ts`.
-3. Keep stage transitions and sequencing in `packages/cli/src/features/workflow/`.
-4. Keep integrations isolated in `packages/cli/src/integrations/linear/`, `packages/cli/src/integrations/github/`, and `packages/cli/src/integrations/agent-adapters/`.
-5. Keep run-state path logic in `packages/cli/src/features/workflow/state.ts`.
-6. Keep CLI parsing and dispatch in `packages/cli/src/args.ts` and `packages/cli/src/index.ts`.
-7. Do not construct raw shell command strings in workflow logic; use helper modules.
-8. Keep TypeScript files under 250 lines; split files before they grow beyond that limit.
-9. Keep TypeScript interfaces/type aliases in dedicated `*.types.ts` modules separate from runtime implementation when adding or changing contracts.
-10. Keep review parsing contract stable:
+1. Before executing agent workflow work, pull the latest code from `main` so runs
+   start from current repository state. Fetch `origin/main`, update the local
+   `main` with a fast-forward-only pull, and do not proceed from stale code.
+2. Do not construct raw shell command strings in workflow logic; use helper
+   modules that pass command arguments as structured arrays.
+3. Keep TypeScript files under 250 lines; split files before they grow beyond
+   that limit.
+4. Keep TypeScript interfaces/type aliases in dedicated `*.types.ts` modules
+   separate from runtime implementation when adding or changing contracts.
+5. Keep review parsing contract stable:
    - `RESULT: PASS|FAIL`
    - `SUMMARY: ...`
    - `BUGS_JSON: [...]`
-11. Add tests for any new CLI flag, config shape, state path, or stage transition.
+
+## Package Ownership Map
+
+- `packages/cli/`: CLI parsing, config resolution, workflow orchestration,
+  run-state handling, integrations, and agent adapters.
+- `packages/server/`: HTTP/API server runtime, request handling, server
+  contracts, health/readiness behavior, and server-specific tests.
+- `packages/web/`: Next.js operator UI, client-side data access, providers,
+  components, styles, and frontend verification.
+
+Package-local `AGENTS.md` files add instructions for each workspace. Follow the
+root rules everywhere, then follow the closest package-specific file for the
+code you are changing.
 
 ## Quality Gates
 
@@ -29,7 +43,11 @@ Run all checks before finalizing changes:
 
 ## Documentation Map
 
-- Architecture details: [ARCHITECTURE.md](/Users/roy/Desktop/SourceCode/agentic/show-me-ur-agents/ARCHITECTURE.md)
-- Execution and operating plans: [docs/PLANS.md](/Users/roy/Desktop/SourceCode/agentic/show-me-ur-agents/docs/PLANS.md)
-- Reliability and run behavior: [docs/RELIABILITY.md](/Users/roy/Desktop/SourceCode/agentic/show-me-ur-agents/docs/RELIABILITY.md)
-- Security and secrets handling: [docs/SECURITY.md](/Users/roy/Desktop/SourceCode/agentic/show-me-ur-agents/docs/SECURITY.md)
+- Architecture details:
+  [ARCHITECTURE.md](ARCHITECTURE.md)
+- Execution and operating plans:
+  [docs/PLANS.md](docs/PLANS.md)
+- Reliability and run behavior:
+  [docs/RELIABILITY.md](docs/RELIABILITY.md)
+- Security and secrets handling:
+  [docs/SECURITY.md](docs/SECURITY.md)
