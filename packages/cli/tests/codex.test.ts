@@ -122,6 +122,7 @@ describe("codex adapter", () => {
 		const adapter = new CodexAdapter(config);
 		expect(adapter).toBeDefined();
 		expect(typeof adapter.runPlan).toBe("function");
+		expect(typeof adapter.runTaskIntake).toBe("function");
 		expect(typeof adapter.resume).toBe("function");
 		expect(typeof adapter.runReview).toBe("function");
 		expect(typeof adapter.runGithubComment).toBe("function");
@@ -141,13 +142,15 @@ describe("codex adapter", () => {
 		).nextOutputFile = async () => "/tmp/out.txt";
 
 		await adapter.runPlan("plan prompt");
+		await adapter.runTaskIntake("task intake prompt");
 		await adapter.resume("session-1", "implement prompt");
 		await adapter.runReview("review prompt");
 
-		expect(calls).toHaveLength(3);
+		expect(calls).toHaveLength(4);
 		expect(calls[0]).toContain('model_reasoning_effort="high"');
-		expect(calls[1]).toContain('model_reasoning_effort="low"');
+		expect(calls[1]).toContain('model_reasoning_effort="high"');
 		expect(calls[2]).toContain('model_reasoning_effort="low"');
+		expect(calls[3]).toContain('model_reasoning_effort="low"');
 	});
 
 	it("uses stage-specific fast mode overrides", async () => {

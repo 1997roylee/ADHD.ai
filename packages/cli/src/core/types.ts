@@ -135,6 +135,7 @@ export interface ProjectRuntimeConfig {
 		implement: string;
 		reviewTest: string;
 		githubComment: string;
+		createTask?: string;
 		autoSelect?: {
 			enabled: boolean;
 			sources: {

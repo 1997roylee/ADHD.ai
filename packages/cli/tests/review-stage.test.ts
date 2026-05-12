@@ -76,6 +76,7 @@ describe("handleReviewTestingStage", () => {
 
 		const agent = {
 			runPlan: async () => ({ finalMessage: "", stdout: "" }),
+			runTaskIntake: async () => ({ finalMessage: "", stdout: "" }),
 			resume: async () => ({ finalMessage: "", stdout: "" }),
 			runReview: async () => ({
 				finalMessage: "RESULT: PASS\nSUMMARY: Looks good.\nBUGS_JSON:\n[]",
@@ -128,6 +129,7 @@ describe("handleReviewTestingStage", () => {
 
 		const agent = {
 			runPlan: async () => ({ finalMessage: "", stdout: "" }),
+			runTaskIntake: async () => ({ finalMessage: "", stdout: "" }),
 			resume: async () => ({ finalMessage: "", stdout: "" }),
 			runReview: async () => ({
 				finalMessage: "RESULT: PASS\nSUMMARY: Looks good.\nBUGS_JSON:\n[]",
@@ -174,6 +176,7 @@ describe("handleReviewTestingStage", () => {
 
 		const agent = {
 			runPlan: async () => ({ finalMessage: "", stdout: "" }),
+			runTaskIntake: async () => ({ finalMessage: "", stdout: "" }),
 			resume: async () => ({ finalMessage: "", stdout: "" }),
 			runReview: async () => ({
 				finalMessage:

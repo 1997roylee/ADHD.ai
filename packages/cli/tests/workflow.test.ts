@@ -966,6 +966,9 @@ describe("review pass stage transitions", () => {
 			runPlan: async () => {
 				throw new Error("unused");
 			},
+			runTaskIntake: async () => {
+				throw new Error("unused");
+			},
 			resume: async () => {
 				throw new Error("unused");
 			},
@@ -1256,6 +1259,7 @@ describe("handlePlanningStage", () => {
 				finalMessage: planSummary,
 				stdout: "",
 			})),
+			runTaskIntake: mock(async () => ({ finalMessage: "", stdout: "" })),
 			resume: mock(async () => ({ finalMessage: "", stdout: "" })),
 			runReview: mock(async () => ({ finalMessage: "", stdout: "" })),
 			runGithubComment: mock(async () => ({ finalMessage: "", stdout: "" })),

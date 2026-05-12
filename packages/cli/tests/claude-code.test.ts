@@ -65,6 +65,7 @@ describe("claude code adapter", () => {
 		const adapter = new ClaudeCodeAdapter(createConfig());
 		expect(adapter).toBeDefined();
 		expect(typeof adapter.runPlan).toBe("function");
+		expect(typeof adapter.runTaskIntake).toBe("function");
 		expect(typeof adapter.resume).toBe("function");
 		expect(typeof adapter.runReview).toBe("function");
 		expect(typeof adapter.runGithubComment).toBe("function");

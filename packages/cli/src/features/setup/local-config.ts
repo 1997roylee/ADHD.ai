@@ -36,6 +36,7 @@ export function renderLocalConfig(draft: SetupDraft): string {
 			implement: "piv-implement/SKILL.md",
 			reviewTest: "piv-review-test/SKILL.md",
 			githubComment: "piv-github-comment/SKILL.md",
+			createTask: "adhd-explore/SKILL.md",
 		},
 	};
 

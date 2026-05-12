@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import type { LinearIssue } from "../src/core/types";
+import type { ResolvedProjectConfig } from "../src/core/types";
 import {
+	LinearClient,
+	buildBacklogTaskIssueInput,
 	buildSplitTaskIssueDescription,
 	buildSplitTaskIssueTitle,
 	buildTodoIssueFromPlanInput,
@@ -280,6 +283,88 @@ describe("buildTodoIssueFromPlanInput", () => {
 	});
 });
 
+describe("buildBacklogTaskIssueInput", () => {
+	it("builds Linear create payload for configured backlog tasks", () => {
+		expect(
+			buildBacklogTaskIssueInput({
+				title: "Create task intake CLI",
+				description: "Clarify requirements before creating Linear issues.",
+				backlogStateId: "state_backlog",
+				teamId: "team_123",
+				projectId: "proj_123",
+			}),
+		).toEqual({
+			title: "Create task intake CLI",
+			description: "Clarify requirements before creating Linear issues.",
+			stateId: "state_backlog",
+			teamId: "team_123",
+			projectId: "proj_123",
+		});
+	});
+});
+
+describe("LinearClient.createBacklogTask", () => {
+	it("resolves backlog status and creates the issue in configured team/project", async () => {
+		const capturedInputs: Array<Record<string, unknown>> = [];
+		const client = new LinearClient(createLinearProject());
+		(
+			client as unknown as {
+				getClient: () => Promise<unknown>;
+			}
+		).getClient = async () => ({
+			workflowStates: async () => ({
+				nodes: [
+					{ id: "state_backlog", name: "Backlog", teamId: "team_123" },
+					{ id: "state_todo", name: "Todo", teamId: "team_123" },
+					{ id: "state_progress", name: "In Progress", teamId: "team_123" },
+					{ id: "state_review", name: "In Review", teamId: "team_123" },
+					{ id: "state_canceled", name: "Canceled", teamId: "team_123" },
+					{ id: "state_done", name: "Done", teamId: "team_123" },
+				],
+			}),
+			createIssue: async (input: Record<string, unknown>) => {
+				capturedInputs.push(input);
+				return {
+					success: true,
+					issue: Promise.resolve({
+						id: "lin_created",
+						identifier: "ROY-100",
+						title: String(input.title),
+						url: "https://linear.example/ROY-100",
+					}),
+				};
+			},
+		});
+
+		const created = await client.createBacklogTask({
+			title: "Create task intake CLI",
+			description: "Clarify then create backlog tasks.",
+		});
+
+		expect(capturedInputs).toEqual([
+			{
+				title: "Create task intake CLI",
+				description: "Clarify then create backlog tasks.",
+				stateId: "state_backlog",
+				teamId: "team_123",
+				projectId: "proj_123",
+			},
+		]);
+		expect(created.identifier).toBe("ROY-100");
+	});
+
+	it("requires a configured team id", async () => {
+		const client = new LinearClient({
+			...createLinearProject(),
+			linear: { ...createLinearProject().linear, teamId: undefined },
+		});
+
+		await expect(
+			client.createBacklogTask({ title: "Title", description: "Description" }),
+		).rejects.toThrow("linear.teamId is not configured");
+	});
+});
+
 describe("Linear rate limit handling", () => {
 	it("detects Linear rate limit errors by status and message", () => {
 		expect(isLinearRateLimitError({ status: 429 })).toBe(true);
@@ -401,3 +486,45 @@ describe("resolveSplitTaskTeamId", () => {
 		);
 	});
 });
+
+function createLinearProject(): ResolvedProjectConfig {
+	return {
+		id: "default",
+		name: "Default",
+		workspacePath: "/tmp/work",
+		executionPath: "/tmp/work",
+		repo: { owner: "acme", name: "repo", baseBranch: "main" },
+		linear: {
+			apiKey: "key",
+			apiUrl: "https://linear.example/graphql",
+			projectId: "proj_123",
+			teamId: "team_123",
+			pollLimit: 10,
+			statusMap: {
+				backlog: "Backlog",
+				assigned: "Todo",
+				planning: "In Progress",
+				implementing: "In Progress",
+				pr_created: "In Review",
+				reviewing: "In Review",
+				testing: "In Review",
+				blocked: "Canceled",
+				done: "Done",
+			},
+			labelMap: {},
+			autoCreateLabels: false,
+		},
+		github: { useGhCli: false, defaultBugLabel: "bug" },
+		codex: { binary: "codex", streamLogs: false },
+		skills: {
+			root: "skills",
+			plan: "skills/piv-plan/SKILL.md",
+			implement: "skills/piv-implement/SKILL.md",
+			reviewTest: "skills/piv-review-test/SKILL.md",
+			githubComment: "skills/piv-github-comment/SKILL.md",
+			createTask: "skills/adhd-explore/SKILL.md",
+		},
+		workflow: { issueConcurrency: 1 },
+		dryRun: false,
+	};
+}

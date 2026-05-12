@@ -28,6 +28,10 @@ export class CodexAdapter implements AgentAdapter {
 		);
 	}
 
+	async runTaskIntake(prompt: string): Promise<AgentResult> {
+		return this.runPlan(prompt);
+	}
+
 	async resume(sessionId: string, prompt: string): Promise<AgentResult> {
 		const model =
 			this.config.codex.models?.implement ?? this.config.codex.model;

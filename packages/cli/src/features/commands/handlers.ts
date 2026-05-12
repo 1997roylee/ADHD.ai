@@ -2,7 +2,9 @@ import type { CliCommand } from "../../args";
 import type { LoadedConfig } from "../../core/config";
 import { getProjectById } from "../../core/config";
 import { runSetupCheck, runSetupWizard } from "../../core/setup";
+import { createAgentAdapter } from "../../integrations/agent-adapters";
 import { runCronJobOnce, runCronScheduler } from "../../integrations/cron";
+import { LinearClient } from "../../integrations/linear";
 import { formatWorkflowStageDisplay } from "../../utils/status";
 import {
 	addSkill,
@@ -10,6 +12,8 @@ import {
 	removeSkill,
 	updateSkill,
 } from "../skills/manage";
+import { readStdinText, withQuestionReader } from "../task-intake/io";
+import { runTaskIntake } from "../task-intake/run";
 import { loadRunState, normalizeIssueKey } from "../workflow/state";
 import { runWorkflow } from "../workflow/workflow";
 
@@ -121,6 +125,41 @@ export async function handleCommand(
 		return;
 	}
 
+	if (command.kind === "task") {
+		const project = command.command.projectId
+			? getProjectById(config, command.command.projectId)
+			: config.projects[0];
+		if (command.command.projectId && !project) {
+			throw new Error(`Project '${command.command.projectId}' not found`);
+		}
+		if (!project) {
+			throw new Error("No project is configured");
+		}
+		const request =
+			command.command.request === "-"
+				? await readStdinText()
+				: command.command.request;
+		const agent = createAgentAdapter(project);
+		const linear = new LinearClient(project);
+		const result = await withQuestionReader((askQuestion) =>
+			runTaskIntake(project, agent, linear, { request, askQuestion }),
+		);
+		if (result.status === "created") {
+			process.stdout.write(
+				`Created Linear task ${result.issue.identifier}: ${result.issue.url}\n`,
+			);
+			return;
+		}
+		process.stdout.write(
+			`${[
+				"Task requirements are still unclear; no Linear issue was created.",
+				"Remaining questions:",
+				...result.questions.map((question) => `- ${question}`),
+			].join("\n")}\n`,
+		);
+		return;
+	}
+
 	const project = getProjectById(config, command.projectId);
 	if (!project) {
 		throw new Error(`Project '${command.projectId}' not found`);
@@ -151,6 +190,7 @@ export function printHelp(): void {
 			"  adhd-ai cron [--once] [--job <JOB_ID>]",
 			"  adhd-ai status --project <PROJECT_ID> --issue <LINEAR_KEY>",
 			"  adhd-ai projects",
+			"  adhd-ai task create --request <TEXT|-> [--project <PROJECT_ID>]",
 			"  adhd-ai skills list [--project <PROJECT_ID>]",
 			"  adhd-ai skills add --title <TITLE> --description <TEXT> --content <TEXT> [--project <PROJECT_ID>]",
 			"  adhd-ai skills update <NAME> [--title <TITLE>] [--description <TEXT>] [--content <TEXT>] [--project <PROJECT_ID>]",

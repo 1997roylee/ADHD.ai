@@ -98,6 +98,7 @@ async function addSkillChecks(
 			["implement", project.skills.implement],
 			["reviewTest", project.skills.reviewTest],
 			["githubComment", project.skills.githubComment],
+			["createTask", project.skills.createTask ?? ""],
 		];
 		for (const [stage, skillPath] of skillChecks) {
 			try {

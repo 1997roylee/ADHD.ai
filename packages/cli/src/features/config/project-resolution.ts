@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
 	AdhdAiRootConfig,
 	DeepPartial,
@@ -6,6 +5,7 @@ import type {
 	ProjectRuntimeConfig,
 	ResolvedProjectConfig,
 } from "../../core/types";
+import { resolveSkillsConfig } from "./skills-resolution";
 
 export function resolveProjects(
 	configCwd: string,
@@ -60,29 +60,6 @@ function mergeRuntime(
 		project.workspacePath ??
 		rootDefaults.workspacePath ??
 		base.executionPath;
-	const skillRoot =
-		project.skills?.root ?? rootDefaults.skills?.root ?? base.skills.root;
-	const mergedSkills = {
-		plan: project.skills?.plan ?? rootDefaults.skills?.plan ?? base.skills.plan,
-		implement:
-			project.skills?.implement ??
-			rootDefaults.skills?.implement ??
-			base.skills.implement,
-		reviewTest:
-			project.skills?.reviewTest ??
-			rootDefaults.skills?.reviewTest ??
-			base.skills.reviewTest,
-		githubComment:
-			project.skills?.githubComment ??
-			rootDefaults.skills?.githubComment ??
-			base.skills.githubComment,
-	};
-	const mergedAutoSelect = resolveAutoSelectConfig(
-		configCwd,
-		base.skills.autoSelect,
-		rootDefaults.skills?.autoSelect,
-		project.skills?.autoSelect,
-	);
 	return {
 		workspacePath,
 		executionPath,
@@ -136,14 +113,12 @@ function mergeRuntime(
 				...(project.codex?.fastModes ?? {}),
 			},
 		},
-		skills: {
-			root: skillRoot,
-			plan: resolveSkillPath(skillRoot, mergedSkills.plan),
-			implement: resolveSkillPath(skillRoot, mergedSkills.implement),
-			reviewTest: resolveSkillPath(skillRoot, mergedSkills.reviewTest),
-			githubComment: resolveSkillPath(skillRoot, mergedSkills.githubComment),
-			autoSelect: mergedAutoSelect,
-		},
+		skills: resolveSkillsConfig(
+			configCwd,
+			base.skills,
+			rootDefaults.skills,
+			project.skills,
+		),
 		agent: {
 			...base.agent,
 			...(rootDefaults.agent ?? {}),
@@ -167,78 +142,4 @@ function mergeRuntime(
 		},
 		dryRun: project.dryRun ?? rootDefaults.dryRun ?? base.dryRun,
 	};
-}
-
-function resolveSkillPath(root: string, input: string): string {
-	if (path.isAbsolute(input)) {
-		return input;
-	}
-	return path.resolve(root, input);
-}
-
-function resolveAutoSelectConfig(
-	configCwd: string,
-	base: ProjectRuntimeConfig["skills"]["autoSelect"] | undefined,
-	rootOverride:
-		| DeepPartial<NonNullable<ProjectRuntimeConfig["skills"]["autoSelect"]>>
-		| undefined,
-	projectOverride:
-		| DeepPartial<NonNullable<ProjectRuntimeConfig["skills"]["autoSelect"]>>
-		| undefined,
-): NonNullable<ProjectRuntimeConfig["skills"]["autoSelect"]> {
-	const mergedEnabled =
-		projectOverride?.enabled ?? rootOverride?.enabled ?? base?.enabled ?? false;
-	const mergedFolderSource =
-		projectOverride?.sources?.folder ??
-		rootOverride?.sources?.folder ??
-		base?.sources?.folder ??
-		true;
-	const mergedDatabaseSource =
-		projectOverride?.sources?.database ??
-		rootOverride?.sources?.database ??
-		base?.sources?.database ??
-		false;
-	const mergedDatabasePath = normalizeOptionalPath(
-		projectOverride?.databasePath ??
-			rootOverride?.databasePath ??
-			base?.databasePath,
-		configCwd,
-	);
-	const mergedMaxSelected = normalizeMaxSelected(
-		projectOverride?.maxSelected ??
-			rootOverride?.maxSelected ??
-			base?.maxSelected,
-	);
-	return {
-		enabled: mergedEnabled === true,
-		sources: {
-			folder: mergedFolderSource === true,
-			database: mergedDatabaseSource === true,
-		},
-		databasePath: mergedDatabasePath,
-		maxSelected: mergedMaxSelected,
-	};
-}
-
-function normalizeOptionalPath(
-	input: unknown,
-	baseDir: string,
-): string | undefined {
-	if (typeof input !== "string") {
-		return undefined;
-	}
-	const trimmed = input.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	return path.isAbsolute(trimmed)
-		? trimmed
-		: path.resolve(baseDir || process.cwd(), trimmed);
-}
-
-function normalizeMaxSelected(input: unknown): number {
-	if (typeof input !== "number" || !Number.isInteger(input) || input <= 0) {
-		return 3;
-	}
-	return input;
 }

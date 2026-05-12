@@ -116,6 +116,7 @@ function required<T>(map: Map<string, T>, key: string): T {
 
 export class FakeAgent implements AgentAdapter {
 	plans: Array<AgentResult | Error> = [];
+	taskIntakes: Array<AgentResult | Error> = [];
 	resumes: Array<AgentResult | Error> = [];
 	reviews: Array<AgentResult | Error> = [];
 	githubComments: Array<AgentResult | Error> = [];
@@ -123,6 +124,9 @@ export class FakeAgent implements AgentAdapter {
 
 	async runPlan(): Promise<AgentResult> {
 		return this.next(this.plans, "plan-1");
+	}
+	async runTaskIntake(): Promise<AgentResult> {
+		return this.next(this.taskIntakes);
 	}
 	async resume(): Promise<AgentResult> {
 		return this.next(this.resumes);
@@ -191,6 +195,14 @@ export class FakeLinear {
 		this.canceled.push(issueId);
 	}
 	async updateIssueDetails(): Promise<void> {}
+	async createBacklogTask(task: { title: string }) {
+		return {
+			id: task.title,
+			identifier: task.title,
+			title: task.title,
+			url: "#",
+		};
+	}
 	async createTodoIssueFromPlan(_parent: unknown, task: { title: string }) {
 		this.children.push(task.title);
 		return {

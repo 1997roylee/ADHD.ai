@@ -271,6 +271,47 @@ describe("parseArgs", () => {
 		});
 	});
 
+	it("parses task create command", () => {
+		expect(
+			parseArgs([
+				"bun",
+				"adhd-ai",
+				"task",
+				"create",
+				"--request",
+				"Build a better setup flow",
+				"--project",
+				"default",
+			]),
+		).toEqual({
+			kind: "task",
+			command: {
+				action: "create",
+				request: "Build a better setup flow",
+				projectId: "default",
+			},
+		});
+	});
+
+	it("parses task create stdin request marker", () => {
+		expect(
+			parseArgs(["bun", "adhd-ai", "task", "create", "--request", "-"]),
+		).toEqual({
+			kind: "task",
+			command: {
+				action: "create",
+				request: "-",
+				projectId: undefined,
+			},
+		});
+	});
+
+	it("rejects task create without a request", () => {
+		expect(() => parseArgs(["bun", "adhd-ai", "task", "create"])).toThrow(
+			"task create requires --request <VALUE>",
+		);
+	});
+
 	it("rejects skills add without required flags", () => {
 		expect(() =>
 			parseArgs(["bun", "adhd-ai", "skills", "add", "--title", "t"]),

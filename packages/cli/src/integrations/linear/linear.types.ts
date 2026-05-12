@@ -40,6 +40,19 @@ export interface TodoIssueFromPlanInput {
 	priority?: number;
 }
 
+export interface BacklogTaskInput {
+	title: string;
+	description: string;
+}
+
+export interface BacklogTaskIssueInput {
+	title: string;
+	description: string;
+	stateId: string;
+	teamId: string;
+	projectId?: string;
+}
+
 export interface WorkflowLabelUpdate {
 	addedLabelIds: string[];
 	removedLabelIds: string[];

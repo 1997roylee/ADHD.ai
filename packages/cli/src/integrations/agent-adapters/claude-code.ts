@@ -15,6 +15,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 		return this.runClaude(prompt);
 	}
 
+	async runTaskIntake(prompt: string): Promise<AgentResult> {
+		return this.runClaude(prompt);
+	}
+
 	async resume(sessionId: string, prompt: string): Promise<AgentResult> {
 		return this.runClaudeResume(sessionId, prompt);
 	}

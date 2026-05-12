@@ -72,6 +72,7 @@ export type WorkflowLinearClient = Pick<
 	| "markStage"
 	| "markCanceled"
 	| "updateIssueDetails"
+	| "createBacklogTask"
 	| "createTodoIssueFromPlan"
 	| "applyStageLabel"
 	| "clearWorkflowStageLabels"

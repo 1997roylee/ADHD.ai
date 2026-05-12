@@ -1,0 +1,40 @@
+import type { RunOptions } from "./core/types";
+
+export type SkillsCommand =
+	| { action: "list"; projectId?: string }
+	| {
+			action: "add";
+			projectId?: string;
+			title: string;
+			description: string;
+			content: string;
+	  }
+	| {
+			action: "update";
+			projectId?: string;
+			name: string;
+			title?: string;
+			description?: string;
+			content?: string;
+	  }
+	| {
+			action: "remove";
+			projectId?: string;
+			name: string;
+	  };
+
+export type TaskCommand = {
+	action: "create";
+	projectId?: string;
+	request: string;
+};
+
+export type CliCommand =
+	| { kind: "run"; options: RunOptions }
+	| { kind: "cron"; jobId?: string; once?: boolean }
+	| { kind: "status"; issueKey: string; projectId: string }
+	| { kind: "projects" }
+	| { kind: "skills"; command: SkillsCommand }
+	| { kind: "task"; command: TaskCommand }
+	| { kind: "setup"; check: boolean }
+	| { kind: "help" };

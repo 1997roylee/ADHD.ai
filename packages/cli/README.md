@@ -60,6 +60,11 @@ git push --follow-tags
 # inspect run state for one issue
 bun run src/index.ts status --project <PROJECT_ID> --issue ENG-123
 
+# create a Linear backlog task from a loose request
+bun run src/index.ts task create --request "<REQUEST>" [--project <PROJECT_ID>]
+# read a longer request from stdin
+bun run src/index.ts task create --request - [--project <PROJECT_ID>]
+
 # skills management
 bun run src/index.ts skills list [--project <PROJECT_ID>]
 bun run src/index.ts skills add --title "<TITLE>" --description "<DESCRIPTION>" --content "<CONTENT>" [--project <PROJECT_ID>]

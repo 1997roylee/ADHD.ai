@@ -145,6 +145,7 @@ export function buildEnvBase(
 			implement: path.join("piv-implement", "SKILL.md"),
 			reviewTest: path.join("piv-review-test", "SKILL.md"),
 			githubComment: path.join("piv-github-comment", "SKILL.md"),
+			createTask: path.join("adhd-explore", "SKILL.md"),
 			autoSelect: {
 				enabled: false,
 				sources: { folder: true, database: false },

@@ -7,6 +7,8 @@ import type {
 } from "../../core/types";
 import { normalizeIssueKey } from "../../features/workflow/state";
 import type {
+	BacklogTaskInput,
+	BacklogTaskIssueInput,
 	BuildTodoIssueInput,
 	CreatedLinearIssueRef,
 	LinearLabelRecord,
@@ -174,6 +176,23 @@ export function buildTodoIssueFromPlanInput(
 		...(projectId ? { projectId } : {}),
 		...(assigneeId ? { assigneeId } : {}),
 		priority: input.task.priority,
+	};
+}
+
+export function buildBacklogTaskIssueInput(
+	input: BacklogTaskInput & {
+		backlogStateId: string;
+		teamId: string;
+		projectId?: string;
+	},
+): BacklogTaskIssueInput {
+	const projectId = input.projectId?.trim();
+	return {
+		title: input.title,
+		description: input.description,
+		stateId: input.backlogStateId,
+		teamId: input.teamId,
+		...(projectId ? { projectId } : {}),
 	};
 }
 
@@ -364,6 +383,63 @@ export class LinearClient {
 				description,
 			}),
 		);
+	}
+
+	async createBacklogTask(
+		input: BacklogTaskInput,
+	): Promise<CreatedLinearIssueRef> {
+		const teamId = this.config.linear.teamId?.trim();
+		if (!teamId) {
+			throw new Error(
+				`Cannot create Linear backlog task for project '${this.config.id}' because linear.teamId is not configured.`,
+			);
+		}
+		await this.ensureResolvedStatusMap();
+		const createInput = buildBacklogTaskIssueInput({
+			title: input.title,
+			description: input.description,
+			backlogStateId: this.requiredStatusMap().backlog,
+			teamId,
+			projectId: this.config.linear.projectId,
+		});
+		if (this.config.dryRun) {
+			const slug = input.title
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, "-")
+				.replace(/^-+|-+$/g, "")
+				.slice(0, 40);
+			return {
+				id: `dry-run-backlog-${Date.now()}`,
+				identifier: "DRY-RUN-BACKLOG",
+				title: createInput.title,
+				url: `https://linear.example/dry-run/${slug || "task"}`,
+			};
+		}
+
+		const payload = await this.linearRequest(async () =>
+			(await this.getClient()).createIssue(createInput),
+		);
+		if (!payload.success) {
+			throw new Error(`Failed to create Linear backlog task '${input.title}'.`);
+		}
+		const createdIssue =
+			(await this.linearRequest(() => payload.issue)) ??
+			(payload.issueId
+				? await this.linearRequest(async () =>
+						(await this.getClient()).issue(payload.issueId as string),
+					)
+				: undefined);
+		if (!createdIssue?.id || !createdIssue.identifier || !createdIssue.url) {
+			throw new Error(
+				`Linear backlog task '${input.title}' was created without required issue fields.`,
+			);
+		}
+		return {
+			id: createdIssue.id,
+			identifier: createdIssue.identifier,
+			title: createdIssue.title,
+			url: createdIssue.url,
+		};
 	}
 
 	async createTodoIssueFromPlan(

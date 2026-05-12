@@ -150,6 +150,9 @@ describe("loadConfig", () => {
 			expect(config.projects[0]?.skills.githubComment).toBe(
 				path.join(tempDir, "skills", "piv-github-comment", "SKILL.md"),
 			);
+			expect(config.projects[0]?.skills.createTask).toBe(
+				path.join(tempDir, "skills", "adhd-explore", "SKILL.md"),
+			);
 			expect(config.projects[0]?.skills.autoSelect).toEqual({
 				enabled: false,
 				sources: {
@@ -1015,6 +1018,9 @@ describe("loadConfig", () => {
 			);
 			expect(config.projects[0]?.skills.githubComment).toBe(
 				path.resolve("./shared-skills", "piv-github-comment/SKILL.md"),
+			);
+			expect(config.projects[0]?.skills.createTask).toBe(
+				path.resolve("./shared-skills", "adhd-explore/SKILL.md"),
 			);
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });
