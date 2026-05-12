@@ -23,19 +23,20 @@ export class CliCommandExecutor {
 		request: CliCommandRequest,
 	): Promise<CliCommandExecutionResult> {
 		const requestedAt = new Date().toISOString();
-		const invocation = toInvocation(
+		const resolution = resolveInvocation(
 			request,
 			this.options.command,
 			this.options.baseArgs,
 		);
-		if (!invocation) {
+		if (resolution.status !== "ok") {
 			return this.record({
 				requestedAt,
 				request,
 				status: "rejected",
-				error: `Unsupported CLI action: ${request.action}`,
+				error: resolution.error,
 			});
 		}
+		const invocation = resolution.invocation;
 
 		try {
 			const commandResult = await (this.options.runCommandFn ?? runCommand)(
@@ -95,30 +96,67 @@ export class CliCommandExecutor {
 	}
 }
 
-function toInvocation(
+function resolveInvocation(
 	request: CliCommandRequest,
 	command: string,
 	baseArgs: string[],
-): CliCommandInvocation | undefined {
+):
+	| { status: "ok"; invocation: CliCommandInvocation }
+	| { status: "error"; error: string } {
 	if (request.action === "run") {
+		const runRequest = request as Extract<
+			SupportedCliCommandRequest,
+			{ action: "run" }
+		>;
 		return {
-			command,
-			args: [...baseArgs, ...buildRunArgs(request)],
+			status: "ok",
+			invocation: {
+				command,
+				args: [...baseArgs, ...buildRunArgs(runRequest)],
+			},
 		};
 	}
 	if (request.action === "status") {
+		if (!isNonEmptyString(request.projectId)) {
+			return {
+				status: "error",
+				error: "Malformed status request: projectId is required",
+			};
+		}
+		if (!isNonEmptyString(request.issueKey)) {
+			return {
+				status: "error",
+				error: "Malformed status request: issueKey is required",
+			};
+		}
 		return {
-			command,
-			args: [...baseArgs, ...buildStatusArgs(request)],
+			status: "ok",
+			invocation: {
+				command,
+				args: [
+					...baseArgs,
+					...buildStatusArgs({
+						action: "status",
+						projectId: request.projectId,
+						issueKey: request.issueKey,
+					}),
+				],
+			},
 		};
 	}
 	if (request.action === "projects") {
 		return {
-			command,
-			args: [...baseArgs, "projects"],
+			status: "ok",
+			invocation: {
+				command,
+				args: [...baseArgs, "projects"],
+			},
 		};
 	}
-	return undefined;
+	return {
+		status: "error",
+		error: `Unsupported CLI action: ${request.action}`,
+	};
 }
 
 function buildRunArgs(
@@ -179,4 +217,8 @@ function appendNumericFlag(
 	if (value !== undefined) {
 		args.push(name, String(value));
 	}
+}
+
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
 }

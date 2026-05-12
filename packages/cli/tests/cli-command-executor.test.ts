@@ -71,6 +71,39 @@ describe("CliCommandExecutor", () => {
 		expect(history[0]?.status).toBe("rejected");
 	});
 
+	it("rejects malformed status action without execution", async () => {
+		let callCount = 0;
+		const runCommandFn: RunCommandFn = async () => {
+			callCount += 1;
+			return { code: 0, stdout: "", stderr: "" };
+		};
+		const executor = new CliCommandExecutor({
+			cwd: "/tmp/work",
+			command: "bun",
+			baseArgs: ["run", "./packages/cli/src/index.ts"],
+			runCommandFn,
+		});
+
+		const missingProject = await executor.execute({
+			action: "status",
+			issueKey: "ROY-122",
+		} as unknown as { action: string });
+		const missingIssue = await executor.execute({
+			action: "status",
+			projectId: "default",
+		} as unknown as { action: string });
+
+		expect(missingProject.status).toBe("rejected");
+		expect(missingProject.error).toContain("projectId is required");
+		expect(missingIssue.status).toBe("rejected");
+		expect(missingIssue.error).toContain("issueKey is required");
+		expect(callCount).toBe(0);
+		const history = executor.getHistory();
+		expect(history).toHaveLength(2);
+		expect(history[0]?.status).toBe("rejected");
+		expect(history[1]?.status).toBe("rejected");
+	});
+
 	it("records failed status and stderr for non-zero exits", async () => {
 		const runCommandFn: RunCommandFn = async () => ({
 			code: 1,
