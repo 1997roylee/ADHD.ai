@@ -1257,6 +1257,7 @@ describe("handlePlanningStage", () => {
 			})),
 			resume: mock(async () => ({ finalMessage: "", stdout: "" })),
 			runReview: mock(async () => ({ finalMessage: "", stdout: "" })),
+			runGithubComment: mock(async () => ({ finalMessage: "", stdout: "" })),
 		};
 		const createTodoIssueFromPlan = mock(async () => ({
 			id: "lin_child",
