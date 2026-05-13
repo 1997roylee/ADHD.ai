@@ -22,11 +22,7 @@ export function validateProjectCronJobDefinition(
 
 	const errors: ProjectCronJobValidationError[] = [];
 	const projectId = stringField(input.projectId, "projectId", errors);
-	const cronExpression = stringField(
-		input.cronExpression,
-		"cronExpression",
-		errors,
-	);
+	const cronExpression = cronExpressionField(input.cronExpression, errors);
 	const targetType = targetTypeField(input.targetType, errors);
 	const target = stringField(input.target, "target", errors);
 	const skills = skillsField(input.skills, errors);
@@ -82,6 +78,24 @@ function stringField(
 	return value;
 }
 
+function cronExpressionField(
+	value: unknown,
+	errors: ProjectCronJobValidationError[],
+): string {
+	const cronExpression = stringField(value, "cronExpression", errors);
+	if (cronExpression.length === 0) {
+		return cronExpression;
+	}
+	if (!isValidCronExpression(cronExpression)) {
+		errors.push({
+			field: "cronExpression",
+			message: "cronExpression must be a valid 5-field cron expression",
+		});
+		return "";
+	}
+	return cronExpression;
+}
+
 function targetTypeField(
 	value: unknown,
 	errors: ProjectCronJobValidationError[],
@@ -134,4 +148,87 @@ function booleanField(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidCronExpression(expression: string): boolean {
+	const fields = expression.trim().split(/\s+/);
+	if (fields.length !== 5) {
+		return false;
+	}
+
+	const ranges: Array<[number, number]> = [
+		[0, 59],
+		[0, 23],
+		[1, 31],
+		[1, 12],
+		[0, 6],
+	];
+
+	return fields.every((field, index) =>
+		isValidCronField(field, ranges[index][0], ranges[index][1]),
+	);
+}
+
+function isValidCronField(field: string, min: number, max: number): boolean {
+	return field
+		.split(",")
+		.every((segment) => isValidCronSegment(segment, min, max));
+}
+
+function isValidCronSegment(
+	segment: string,
+	min: number,
+	max: number,
+): boolean {
+	if (segment === "*") {
+		return true;
+	}
+
+	const stepParts = segment.split("/");
+	if (stepParts.length > 2 || stepParts.some((part) => part.length === 0)) {
+		return false;
+	}
+
+	const [base, stepRaw] = stepParts;
+	if (!isValidCronBase(base, min, max)) {
+		return false;
+	}
+
+	if (stepRaw === undefined) {
+		return true;
+	}
+	if (!isInteger(stepRaw)) {
+		return false;
+	}
+	const step = Number(stepRaw);
+	return step > 0;
+}
+
+function isValidCronBase(base: string, min: number, max: number): boolean {
+	if (base === "*") {
+		return true;
+	}
+
+	if (base.includes("-")) {
+		const [startRaw, endRaw, ...extra] = base.split("-");
+		if (extra.length > 0) {
+			return false;
+		}
+		if (!isInteger(startRaw) || !isInteger(endRaw)) {
+			return false;
+		}
+		const start = Number(startRaw);
+		const end = Number(endRaw);
+		return start >= min && end <= max && start <= end;
+	}
+
+	if (!isInteger(base)) {
+		return false;
+	}
+	const value = Number(base);
+	return value >= min && value <= max;
+}
+
+function isInteger(value: string): boolean {
+	return /^\d+$/.test(value);
 }

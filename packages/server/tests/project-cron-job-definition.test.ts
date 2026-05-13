@@ -7,7 +7,7 @@ import {
 
 describe("project cron job definition validation", () => {
 	it("accepts valid cron job definitions", () => {
-		const result = validateProjectCronJobDefinition({
+		const validHourly = validateProjectCronJobDefinition({
 			projectId: "project-1",
 			cronExpression: "0 * * * *",
 			targetType: "script",
@@ -15,13 +15,21 @@ describe("project cron job definition validation", () => {
 			skills: ["adhd-plan", "adhd-implement"],
 			enabled: true,
 		});
+		const validTwoHour = validateProjectCronJobDefinition({
+			projectId: "project-1",
+			cronExpression: "0 */2 * * *",
+			targetType: "script",
+			target: "review:hourly",
+			skills: ["adhd-plan"],
+		});
 
-		expect(result.ok).toBe(true);
-		if (!result.ok) {
+		expect(validHourly.ok).toBe(true);
+		expect(validTwoHour.ok).toBe(true);
+		if (!validHourly.ok) {
 			return;
 		}
-		expect(result.value.projectId).toBe("project-1");
-		expect(result.value.targetType).toBe("script");
+		expect(validHourly.value.projectId).toBe("project-1");
+		expect(validHourly.value.targetType).toBe("script");
 	});
 
 	it("rejects malformed cron job definitions", () => {
@@ -59,6 +67,25 @@ describe("project cron job definition validation", () => {
 				message: "skills must be an array of strings",
 			},
 		]);
+	});
+
+	it("rejects invalid cron expression syntax", () => {
+		const result = validateProjectCronJobDefinition({
+			projectId: "project-1",
+			cronExpression: "not-a-cron",
+			targetType: "script",
+			target: "review:hourly",
+			skills: [],
+		});
+
+		expect(result.ok).toBe(false);
+		if (result.ok) {
+			return;
+		}
+		expect(result.errors).toContainEqual({
+			field: "cronExpression",
+			message: "cronExpression must be a valid 5-field cron expression",
+		});
 	});
 
 	it("serializes and parses skills payloads", () => {
