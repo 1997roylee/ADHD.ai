@@ -851,18 +851,28 @@ async function processIssue(
 			);
 			return;
 		}
+		issueLogger.info({ leaseOwnerId }, "Issue lease acquired");
 		const executionConfig =
 			isolatedWorktreesEnabled && !config.dryRun && runState.stage !== "done"
 				? await withExecutionPathLock(config.executionPath, async () => {
+						issueLogger.info("Preparing isolated issue worktree");
 						const isolatedConfig = await prepareIsolatedExecutionConfig(
 							config,
 							runState,
 							runtime,
 						);
 						await saveRunState(config.workspacePath, runState);
+						issueLogger.info(
+							{ executionPath: isolatedConfig.executionPath },
+							"Isolated issue worktree prepared",
+						);
 						return isolatedConfig;
 					})
 				: config;
+		issueLogger.info(
+			{ stage: runState.stage, executionPath: executionConfig.executionPath },
+			"Starting issue stage execution",
+		);
 		await executeIssue(
 			executionConfig,
 			notifications,
