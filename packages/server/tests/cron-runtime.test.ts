@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { LoadedConfig } from "../../cli/src/core/config";
-import type { CronJobConfig } from "../../cli/src/core/types";
+import type { LoadedConfig } from "adhdai/features/config";
+import type { CronJobConfig } from "adhdai/features/types";
 import {
 	runCronJobOnce,
 	runCronSchedulerCycle,
@@ -182,6 +182,7 @@ function createLoadedConfig(jobs: CronJobConfig[]): LoadedConfig {
 					autoCreateLabels: true,
 				},
 				github: { useGhCli: true, defaultBugLabel: "bug" },
+				server: { database: { databasePath: "/tmp/adhdai.sqlite" } },
 				codex: { binary: "codex", streamLogs: false },
 				skills: {
 					root: "/tmp/skills",

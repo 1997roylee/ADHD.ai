@@ -1,5 +1,5 @@
-import type { LoadedConfig } from "../../../cli/src/core/config";
-import type { CronJobConfig, RunOptions } from "../../../cli/src/core/types";
+import type { LoadedConfig } from "adhdai/features/config";
+import type { CronJobConfig, RunOptions } from "adhdai/features/types";
 
 export interface RunCronOptions {
 	jobId?: string;

@@ -663,6 +663,7 @@ function createLinearProject(): ResolvedProjectConfig {
 			autoCreateLabels: false,
 		},
 		github: { useGhCli: false, defaultBugLabel: "bug" },
+		server: { database: { databasePath: "/tmp/adhdai.sqlite" } },
 		codex: { binary: "codex", streamLogs: false },
 		skills: {
 			root: "skills",

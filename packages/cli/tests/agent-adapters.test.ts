@@ -39,6 +39,11 @@ function createConfig(
 			autoCreateLabels: true,
 		},
 		github: { useGhCli: true, defaultBugLabel: "bug" },
+		server: {
+			database: {
+				databasePath: "/tmp/work/.piv-loop/config/server-db",
+			},
+		},
 		codex: { binary: process.execPath, streamLogs: false },
 		agent: backend ? { backend } : undefined,
 		skills: {

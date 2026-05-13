@@ -231,6 +231,11 @@ function createLoadedConfig(jobs: CronJobConfig[]): LoadedConfig {
 					autoCreateLabels: true,
 				},
 				github: { useGhCli: true, defaultBugLabel: "bug" },
+				server: {
+					database: {
+						databasePath: "/tmp/ws/.piv-loop/config/server-db",
+					},
+				},
 				codex: { binary: "codex", streamLogs: false },
 				skills: {
 					root: "/tmp/skills",

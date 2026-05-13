@@ -1,5 +1,5 @@
-import type { LoadedConfig } from "../../../cli/src/core/config";
-import { logger, normalizeError } from "../../../cli/src/utils/logger";
+import type { LoadedConfig } from "adhdai/features/config";
+import { logger, normalizeError } from "adhdai/utils/logger";
 import {
 	applyCronJobSkillOverrides,
 	selectCronJobForImmediateRun,

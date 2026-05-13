@@ -1776,6 +1776,11 @@ function createProject(
 			useGhCli: true,
 			defaultBugLabel: "bug",
 		},
+		server: {
+			database: {
+				databasePath: "/tmp/workspace/.piv-loop/config/server-db",
+			},
+		},
 		codex: {
 			binary: "codex",
 			streamLogs: false,

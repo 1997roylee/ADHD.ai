@@ -1,6 +1,6 @@
 import path from "node:path";
-import type { LoadedConfig } from "../../../cli/src/core/config";
-import type { CronJobConfig } from "../../../cli/src/core/types";
+import type { LoadedConfig } from "adhdai/features/config";
+import type { CronJobConfig } from "adhdai/features/types";
 
 export function selectCronJobs(
 	config: LoadedConfig,

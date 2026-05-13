@@ -1,12 +1,10 @@
-import type { LoadedConfig } from "../../../cli/src/core/config";
-import type { RunOptions } from "../../../cli/src/core/types";
+import type { LoadedConfig } from "adhdai/features/config";
+import type { RunOptions } from "adhdai/features/types";
 
 export async function runCronWorkflow(
 	config: LoadedConfig,
 	options: RunOptions,
 ): Promise<void> {
-	const { runWorkflow } = await import(
-		"../../../cli/src/features/workflow/workflow"
-	);
+	const { runWorkflow } = await import("adhdai/features/workflow/workflow");
 	await runWorkflow(config, options);
 }

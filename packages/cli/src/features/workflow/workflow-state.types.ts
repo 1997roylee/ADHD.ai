@@ -133,8 +133,10 @@ export interface RunState {
 	implementationSummary?: string;
 	reviewSummary?: string;
 	testingSummary?: string;
+	successGoal?: string;
 	complexityScore?: number;
 	reviewMode?: "bot" | "human";
+	automatedReviewFixPasses?: number;
 	humanReviewNotifiedAt?: string;
 	pullRequestApprovedAt?: string;
 	pullRequest?: PullRequestRef;

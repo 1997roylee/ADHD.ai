@@ -1,3 +1,5 @@
+import type { ServerRuntimeConfig } from "./server.types";
+
 export interface LinearStatusMap {
 	backlog: string;
 	assigned: string;
@@ -57,6 +59,7 @@ export interface ProjectRuntimeConfig {
 		useGhCli: boolean;
 		defaultBugLabel: string;
 	};
+	server: ServerRuntimeConfig;
 	codex: {
 		binary: string;
 		streamLogs: boolean;
