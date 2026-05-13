@@ -1,17 +1,26 @@
 "use client";
 
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { createApiClient } from "./client";
+import {
+	type UseMutationResult,
+	type UseQueryResult,
+	useMutation,
+	useQuery,
+} from "@tanstack/react-query";
 import type {
 	AgentRecord,
 	CommandHistoryRecord,
 	JobRecord,
 	SkillRecord,
+	TaskCreateResponse,
 	TokenUsageRecord,
 } from "./client.types";
-import type { ServerStateQueryOptions } from "./queries.types";
+import type {
+	ServerStateQueryOptions,
+	TaskCreateMutationInput,
+} from "./queries.types";
+import { createWebApiClient } from "./web-client";
 
-const apiClient = createApiClient();
+const apiClient = createWebApiClient();
 
 export const serverStateQueryKeys = {
 	tokenUsage: ["server-state", "token-usage"] as const,
@@ -19,6 +28,10 @@ export const serverStateQueryKeys = {
 	agents: ["server-state", "agents"] as const,
 	skills: ["server-state", "skills"] as const,
 	commandHistory: ["server-state", "command-history"] as const,
+};
+
+export const taskCreationMutationKeys = {
+	createTask: ["task-creation", "create-task"] as const,
 };
 
 export function useTokenUsageQuery(
@@ -68,5 +81,21 @@ export function useCommandHistoryQuery(
 		queryKey: serverStateQueryKeys.commandHistory,
 		queryFn: () => apiClient.listCommandHistory(),
 		enabled: options?.enabled,
+	});
+}
+
+export function useCreateTaskMutation(): UseMutationResult<
+	TaskCreateResponse,
+	Error,
+	TaskCreateMutationInput
+> {
+	return useMutation({
+		mutationKey: taskCreationMutationKeys.createTask,
+		mutationFn: (input) =>
+			apiClient.createTask({
+				request: input.request,
+				projectId: input.projectId,
+				answers: input.answers,
+			}),
 	});
 }

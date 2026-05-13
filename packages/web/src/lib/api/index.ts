@@ -5,11 +5,18 @@ export type {
 	ApiClient,
 	ApiClientOptions,
 	CommandHistoryRecord,
+	CreatedTaskRef,
 	HealthRequestOptions,
 	HealthResponse,
 	HealthStatus,
 	JobRecord,
 	SkillRecord,
+	TaskCreateAnswer,
+	TaskCreateRequest,
+	TaskCreateResponse,
 	TokenUsageRecord,
 } from "./client.types";
-export type { ServerStateQueryOptions } from "./queries.types";
+export type {
+	ServerStateQueryOptions,
+	TaskCreateMutationInput,
+} from "./queries.types";
