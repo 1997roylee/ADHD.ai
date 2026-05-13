@@ -1,5 +1,6 @@
 import { CliCommandExecutor } from "adhdai/features/server/cli-command-executor";
 import { createHandleRequest } from "./app";
+import { createNotificationSender } from "./notifications/notification-sender";
 
 export const startServer = (port = 3000): Bun.Server<undefined> =>
 	Bun.serve({
@@ -9,6 +10,9 @@ export const startServer = (port = 3000): Bun.Server<undefined> =>
 				cwd: process.cwd(),
 				command: "bun",
 				baseArgs: ["run", "./packages/cli/src/index.ts"],
+			}),
+			notificationSender: createNotificationSender({
+				resendApiKey: process.env.RESEND_API_KEY?.trim(),
 			}),
 		}),
 	});

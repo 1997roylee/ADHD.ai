@@ -154,10 +154,116 @@ describe("CLI server routes", () => {
 				"Unsafe dispatch request: raw command field 'command' is not allowed",
 		});
 	});
+
+	it("accepts task outcome notifications and delegates delivery", async () => {
+		const calls: unknown[] = [];
+		const app = createHandleRequest(
+			createDeps({
+				sendNotification: async (request) => {
+					calls.push(request);
+				},
+			}),
+		);
+
+		const response = await app(
+			new Request("http://localhost/api/notifications", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					type: "task-outcome",
+					payload: {
+						from: "ops@example.com",
+						to: ["dev@example.com"],
+						subject: "ENG-1 DONE",
+						text: "done",
+					},
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		expect(await response.json()).toEqual({ status: "accepted" });
+		expect(calls).toHaveLength(1);
+	});
+
+	it("accepts human review notifications and delegates delivery", async () => {
+		const calls: unknown[] = [];
+		const app = createHandleRequest(
+			createDeps({
+				sendNotification: async (request) => {
+					calls.push(request);
+				},
+			}),
+		);
+
+		const response = await app(
+			new Request("http://localhost/api/notifications", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					type: "human-review-required",
+					payload: {
+						from: "ops@example.com",
+						to: ["dev@example.com"],
+						subject: "ENG-1 HUMAN REVIEW REQUIRED",
+						text: "review required",
+					},
+					complexityScore: 7,
+					reason: "High complexity",
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		expect(await response.json()).toEqual({ status: "accepted" });
+		expect(calls).toHaveLength(1);
+	});
+
+	it("rejects malformed notification requests", async () => {
+		const app = createHandleRequest(createDeps());
+
+		const invalidType = await app(
+			new Request("http://localhost/api/notifications", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					type: "bad-type",
+					payload: {
+						from: "ops@example.com",
+						to: ["dev@example.com"],
+						subject: "x",
+						text: "x",
+					},
+				}),
+			}),
+		);
+		const invalidPayload = await app(
+			new Request("http://localhost/api/notifications", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					type: "task-outcome",
+					payload: { from: "ops@example.com" },
+				}),
+			}),
+		);
+
+		expect(invalidType.status).toBe(400);
+		expect(await invalidType.json()).toEqual({
+			error:
+				"Malformed notification request: type must be 'task-outcome' or 'human-review-required'",
+		});
+		expect(invalidPayload.status).toBe(400);
+		expect(await invalidPayload.json()).toEqual({
+			error:
+				"Malformed notification request: payload must include from, to, subject, and text",
+		});
+	});
 });
 
 function createDeps(overrides?: {
 	execute?: AppDeps["cliExecutor"]["execute"];
+	sendNotification?: AppDeps["notificationSender"]["sendNotification"];
 	history?: AppDeps["cliExecutor"]["getHistory"] extends () => infer T
 		? T
 		: never;
@@ -171,6 +277,9 @@ function createDeps(overrides?: {
 					request,
 				})),
 			getHistory: () => overrides?.history ?? [],
+		},
+		notificationSender: {
+			sendNotification: overrides?.sendNotification ?? (async () => {}),
 		},
 	};
 }
