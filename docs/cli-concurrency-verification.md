@@ -41,7 +41,10 @@ Capture all of the following from the same run:
 2. Run-state files:
    - `.piv-loop/projects/<project-id>/runs/<ISSUE_KEY>.json`
 3. Agent chat log entries:
-   - `.piv-loop/projects/<project-id>/agent-chat-log.jsonl`
+   - `.piv-loop/projects/<project-id>/chat-logs/<agent-role>/*.json`
+   - Each file contains a JSON array of entries (not JSONL)
+   - File names are skill-path derived (sanitized + hash suffix), so use
+     `chat-logs` directory listing to locate relevant planner/implement/review files
 
 ## Fields To Compare
 
