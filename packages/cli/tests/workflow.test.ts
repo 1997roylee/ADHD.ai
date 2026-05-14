@@ -2229,6 +2229,43 @@ describe("isolated worktree workflow helpers", () => {
 		]);
 	});
 
+	it("builds absolute isolated worktree paths from relative workspace config", async () => {
+		const config = createProject("default");
+		config.workspacePath = ".";
+		config.executionPath = ".";
+		config.workflow.isolatedWorktrees = { enabled: true };
+		const state = createRunState("ENG-42", "implementing", Date.now());
+		const runtime = {
+			ensureBaseBranchFresh: mock(async () => {}),
+			ensureIssueWorktree: mock(
+				async (
+					_projectConfig: ResolvedProjectConfig,
+					_issueKey: string,
+					_pullRequest: RunState["pullRequest"],
+					worktreePath: string,
+				) => {
+					expect(path.isAbsolute(worktreePath)).toBe(true);
+					return "codex/eng-42";
+				},
+			),
+			prepareWorktreeDependencies: mock(async () => {}),
+		} as unknown as WorkflowRuntime;
+
+		const isolatedConfig = await prepareIsolatedExecutionWorkspace(
+			config,
+			state,
+			runtime,
+		);
+
+		expect(isolatedConfig.executionPath).toBe(
+			path.resolve(".piv-loop/projects/default/worktrees/eng-42"),
+		);
+		expect(state.executionWorkspace?.path).toBe(isolatedConfig.executionPath);
+		expect(isolatedWorktreePath(config, state)).toBe(
+			isolatedConfig.executionPath,
+		);
+	});
+
 	it("prepares isolated workspace metadata without installing dependencies", async () => {
 		const config = createProject("default");
 		config.workflow.isolatedWorktrees = { enabled: true };

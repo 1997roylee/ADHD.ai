@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import path from "node:path";
 import type { ResolvedProjectConfig } from "../src/features/types";
 import {
 	CodexAdapter,
@@ -267,6 +268,42 @@ describe("codex adapter", () => {
 		expect(invocation.env).toEqual({ CODEX_HOME: "/tmp/codex" });
 	});
 
+	it("absolutizes non-docker codex paths at the runtime boundary", () => {
+		const invocation = buildCodexRuntimeInvocation(
+			{
+				...config,
+				workspacePath: ".",
+				executionPath: ".piv-loop/projects/default/worktrees/eng-1",
+				codex: {
+					...config.codex,
+					codexHome: ".piv-loop/codex-home/default",
+				},
+			},
+			[
+				"exec",
+				"--cd",
+				".piv-loop/projects/default/worktrees/eng-1",
+				"--output-last-message",
+				".piv-loop/tmp/out.txt",
+				"prompt",
+			],
+		);
+
+		const expectedExecutionPath = path.resolve(
+			".piv-loop/projects/default/worktrees/eng-1",
+		);
+		expect(invocation.command).toBe("codex");
+		expect(invocation.cwd).toBe(expectedExecutionPath);
+		expect(invocation.args).toContain(expectedExecutionPath);
+		expect(invocation.hostOutputFile).toBe(
+			path.resolve(".piv-loop/tmp/out.txt"),
+		);
+		expect(invocation.args).toContain(path.resolve(".piv-loop/tmp/out.txt"));
+		expect(invocation.env).toEqual({
+			CODEX_HOME: path.resolve(".piv-loop/codex-home/default"),
+		});
+	});
+
 	it("wraps codex exec args in docker when enabled", () => {
 		const invocation = buildCodexRuntimeInvocation(
 			{
@@ -297,6 +334,45 @@ describe("codex adapter", () => {
 		expect(invocation.args).toContain("-w");
 		expect(invocation.args).toContain("/workspace/repo");
 		expect(invocation.args).toContain("CODEX_HOME=/codex-home");
+	});
+
+	it("maps relative host paths to docker container paths after absolutizing", () => {
+		const invocation = buildCodexRuntimeInvocation(
+			{
+				...config,
+				workspacePath: ".",
+				executionPath: ".piv-loop/projects/default/worktrees/eng-1",
+				codex: {
+					...config.codex,
+					docker: {
+						enabled: true,
+						image: "codex:latest",
+					},
+				},
+			},
+			[
+				"exec",
+				"--cd",
+				".piv-loop/projects/default/worktrees/eng-1",
+				"--output-last-message",
+				".piv-loop/tmp/out.txt",
+				"prompt",
+			],
+		);
+
+		const expectedExecutionPath = path.resolve(
+			".piv-loop/projects/default/worktrees/eng-1",
+		);
+		expect(invocation.command).toBe("docker");
+		expect(invocation.cwd).toBe(expectedExecutionPath);
+		expect(invocation.args).toContain(`${path.resolve(".")}:/workspace`);
+		expect(invocation.args).toContain(
+			"/workspace/.piv-loop/projects/default/worktrees/eng-1",
+		);
+		expect(invocation.args).toContain("/workspace/.piv-loop/tmp/out.txt");
+		expect(invocation.hostOutputFile).toBe(
+			path.resolve(".piv-loop/tmp/out.txt"),
+		);
 	});
 
 	it("adds explicit execution volume when execution path is outside workspace", () => {

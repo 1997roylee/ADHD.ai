@@ -25,18 +25,18 @@ export function isolatedWorktreePath(
 	state: RunState,
 ): string {
 	if (state.executionWorkspace?.mode === "git-worktree") {
-		return state.executionWorkspace.path;
+		return path.resolve(state.executionWorkspace.path);
 	}
 	const configuredRoot = config.workflow.isolatedWorktrees?.root;
-	const root =
-		configuredRoot ??
-		path.join(
-			config.workspacePath,
-			".piv-loop",
-			"projects",
-			config.id,
-			"worktrees",
-		);
+	const root = configuredRoot
+		? path.resolve(configuredRoot)
+		: path.resolve(
+				config.workspacePath,
+				".piv-loop",
+				"projects",
+				config.id,
+				"worktrees",
+			);
 	const issueKey = normalizeIssueKey(state.issue.key).toLowerCase();
 	return configuredRoot
 		? path.join(root, config.id, issueKey)

@@ -13,16 +13,26 @@ export function buildCodexRuntimeInvocation(
 	config: ResolvedProjectConfig,
 	codexArgs: string[],
 ): CodexRuntimeInvocation {
-	const hostOutputFile =
+	const hostWorkspacePath = path.resolve(config.workspacePath);
+	const hostExecutionPath = path.resolve(config.executionPath);
+	const rawOutputFile =
 		codexArgs[codexArgs.indexOf("--output-last-message") + 1] ?? "";
-	const codexHome = config.codex.codexHome;
-	const env = codexHome ? { CODEX_HOME: codexHome } : undefined;
+	const hostOutputFile = rawOutputFile ? path.resolve(rawOutputFile) : "";
+	const hostCodexHome = config.codex.codexHome
+		? path.resolve(config.codex.codexHome)
+		: undefined;
+	const env = hostCodexHome ? { CODEX_HOME: hostCodexHome } : undefined;
 	const dockerConfig = config.codex.docker;
+	const hostCodexArgs = mapCodexHostPaths(
+		codexArgs,
+		hostExecutionPath,
+		hostOutputFile,
+	);
 	if (!dockerConfig?.enabled || !dockerConfig.image) {
 		return {
 			command: config.codex.binary,
-			args: codexArgs,
-			cwd: config.executionPath,
+			args: hostCodexArgs,
+			cwd: hostExecutionPath,
 			env,
 			hostOutputFile,
 		};
@@ -34,12 +44,12 @@ export function buildCodexRuntimeInvocation(
 		"/workspace",
 	);
 	const defaultContainerExecution = isDescendantPath(
-		config.executionPath,
-		config.workspacePath,
+		hostExecutionPath,
+		hostWorkspacePath,
 	)
 		? joinContainerPath(
 				containerWorkspace,
-				path.relative(config.workspacePath, config.executionPath),
+				path.relative(hostWorkspacePath, hostExecutionPath),
 			)
 		: path.posix.join(containerWorkspace, "repo");
 	const containerExecution = normalizeContainerPath(
@@ -52,9 +62,9 @@ export function buildCodexRuntimeInvocation(
 	);
 
 	const mappedCodexArgs = mapCodexPaths(
-		codexArgs,
-		config.executionPath,
-		config.workspacePath,
+		hostCodexArgs,
+		hostExecutionPath,
+		hostWorkspacePath,
 		containerExecution,
 		containerWorkspace,
 		hostOutputFile,
@@ -63,13 +73,13 @@ export function buildCodexRuntimeInvocation(
 		"run",
 		"--rm",
 		"-v",
-		`${config.workspacePath}:${containerWorkspace}`,
+		`${hostWorkspacePath}:${containerWorkspace}`,
 	];
-	if (!isDescendantPath(config.executionPath, config.workspacePath)) {
-		dockerArgs.push("-v", `${config.executionPath}:${containerExecution}`);
+	if (!isDescendantPath(hostExecutionPath, hostWorkspacePath)) {
+		dockerArgs.push("-v", `${hostExecutionPath}:${containerExecution}`);
 	}
-	if (codexHome) {
-		dockerArgs.push("-v", `${codexHome}:${containerCodexHome}`);
+	if (hostCodexHome) {
+		dockerArgs.push("-v", `${hostCodexHome}:${containerCodexHome}`);
 		dockerArgs.push("-e", `CODEX_HOME=${containerCodexHome}`);
 	}
 	dockerArgs.push("-w", containerExecution);
@@ -79,9 +89,29 @@ export function buildCodexRuntimeInvocation(
 	return {
 		command: dockerBinary,
 		args: dockerArgs,
-		cwd: config.executionPath,
+		cwd: hostExecutionPath,
 		hostOutputFile,
 	};
+}
+
+function mapCodexHostPaths(
+	args: string[],
+	hostExecutionPath: string,
+	hostOutputFile: string,
+): string[] {
+	const mapped = [...args];
+	const cdIndex = mapped.indexOf("--cd");
+	if (cdIndex >= 0 && cdIndex + 1 < mapped.length) {
+		mapped[cdIndex + 1] = path.resolve(mapped[cdIndex + 1]);
+	}
+	const outputIndex = mapped.indexOf("--output-last-message");
+	if (outputIndex >= 0 && outputIndex + 1 < mapped.length) {
+		mapped[outputIndex + 1] = hostOutputFile;
+	}
+	if (cdIndex < 0 && mapped[0] === "exec" && mapped[1] !== "resume") {
+		mapped.splice(1, 0, "--cd", hostExecutionPath);
+	}
+	return mapped;
 }
 
 function mapCodexPaths(

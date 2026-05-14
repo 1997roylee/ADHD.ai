@@ -76,7 +76,40 @@ export function assertCommandOk(
 ): void {
 	if (result.code !== 0) {
 		throw new Error(
-			`${command} ${args.join(" ")} failed with ${result.code}\n${result.stderr || result.stdout}`,
+			[
+				`${command} failed with exit code ${result.code}`,
+				formatCommandOutput("stderr", result.stderr),
+				formatCommandOutput("stdout", result.stdout),
+				`command: ${formatCommandForError(command, args)}`,
+			]
+				.filter(Boolean)
+				.join("\n"),
 		);
 	}
+}
+
+function formatCommandOutput(label: string, output: string): string {
+	const trimmed = output.trim();
+	if (!trimmed) {
+		return "";
+	}
+	return `${label}:\n${truncateForError(trimmed)}`;
+}
+
+function formatCommandForError(command: string, args: string[]): string {
+	return truncateForError([command, ...args.map(formatArgForError)].join(" "));
+}
+
+function formatArgForError(arg: string): string {
+	if (!arg || /\s/.test(arg)) {
+		return JSON.stringify(arg);
+	}
+	return arg;
+}
+
+function truncateForError(value: string): string {
+	const limit = 4000;
+	return value.length > limit
+		? `${value.slice(0, limit)}\n...<truncated>`
+		: value;
 }
