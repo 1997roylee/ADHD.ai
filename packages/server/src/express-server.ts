@@ -11,9 +11,7 @@ import * as OpenApiValidator from "express-openapi-validator";
 import swaggerUi from "swagger-ui-express";
 import type { RouteHandler } from "./app.types";
 
-const MAX_DYNAMIC_PORT_ATTEMPTS = 200;
-const EPHEMERAL_PORT_MIN = 49_152;
-const EPHEMERAL_PORT_MAX = 65_535;
+const PORT_ZERO_RETRY_LIMIT = 5;
 const OPENAPI_SPEC_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../../..",
@@ -55,48 +53,38 @@ export function createExpressApp(handler: RouteHandler): Express {
 }
 
 export function listenExpressApp(app: Express, port: number): Promise<Server> {
-	if (port !== 0) {
-		return listenOnPort(app, port);
-	}
-	return listenWithDynamicPortRetry(app);
-}
-
-async function listenWithDynamicPortRetry(app: Express): Promise<Server> {
-	for (let attempt = 0; attempt < MAX_DYNAMIC_PORT_ATTEMPTS; attempt += 1) {
-		const candidatePort = attempt === 0 ? 0 : randomEphemeralPort();
-		try {
-			return await listenOnPort(app, candidatePort);
-		} catch (error) {
-			if (!isAddrInUseError(error)) {
-				throw error;
-			}
-		}
-	}
-	throw new Error(
-		`Failed to find an available port after ${MAX_DYNAMIC_PORT_ATTEMPTS} attempts`,
-	);
-}
-
-function listenOnPort(app: Express, port: number): Promise<Server> {
 	return new Promise((resolve, reject) => {
-		const server = app.listen(port);
-		server.once("listening", () => resolve(server));
-		server.once("error", reject);
+		let attempts = 0;
+		const maxAttempts = port === 0 ? PORT_ZERO_RETRY_LIMIT : 1;
+
+		const listen = (): void => {
+			attempts += 1;
+			const server = app.listen(port);
+			server.once("listening", () => resolve(server));
+			server.once("error", (error) => {
+				if (
+					port === 0 &&
+					isAddressInUseError(error) &&
+					attempts < maxAttempts
+				) {
+					listen();
+					return;
+				}
+				reject(error);
+			});
+		};
+
+		listen();
 	});
 }
 
-function isAddrInUseError(error: unknown): boolean {
+function isAddressInUseError(error: unknown): boolean {
 	return (
 		typeof error === "object" &&
 		error !== null &&
 		"code" in error &&
-		(error as { code?: string }).code === "EADDRINUSE"
+		(error as { code?: unknown }).code === "EADDRINUSE"
 	);
-}
-
-function randomEphemeralPort(): number {
-	const spread = EPHEMERAL_PORT_MAX - EPHEMERAL_PORT_MIN + 1;
-	return EPHEMERAL_PORT_MIN + Math.floor(Math.random() * spread);
 }
 
 function toWebRequest(request: ExpressRequest): Request {
