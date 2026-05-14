@@ -1,10 +1,11 @@
-import type { NotificationServerRequest } from "adhdai/features/server";
 import type { AppDeps, RouteHandler } from "./app.types";
 import { handleCliRoute } from "./http/cli-routes";
 import { handleProjectsRoute } from "./http/projects-routes";
 import { withRequestLogging } from "./http/request-logger";
 import { handleTasksRoute } from "./http/tasks-routes";
+import { parseNotificationServerRequest } from "./notifications/notification-server-request";
 import { parseNotificationRequest } from "./notifications/notifications-request";
+import { READ_ONLY_SERVER_PATHS, handleServerRequest } from "./routes";
 import { handleEntityCrudRequest, matchCrudRoute } from "./routes/entity-crud";
 
 const WORKSPACE_PROJECTS_ROUTE = /^\/api\/workspaces\/([^/]+)\/projects\/?$/;
@@ -14,6 +15,10 @@ const WORKSPACE_PROJECT_BOARD_ROUTE =
 export function createHandleRequest(deps: AppDeps): RouteHandler {
 	const handler: RouteHandler = async (request) => {
 		const { pathname } = new URL(request.url);
+
+		if (pathname === "/health" && request.method === "GET") {
+			return Response.json({ status: "ok" });
+		}
 
 		const cliResponse = await handleCliRoute(
 			request,
@@ -148,6 +153,16 @@ export function createHandleRequest(deps: AppDeps): RouteHandler {
 			return Response.json({ status: "sent" }, { status: 200 });
 		}
 
+		if ((READ_ONLY_SERVER_PATHS as readonly string[]).includes(pathname)) {
+			if (!deps.repositories) {
+				return Response.json(
+					{ error: "Read repositories not configured" },
+					{ status: 500 },
+				);
+			}
+			return handleServerRequest(request, { repositories: deps.repositories });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	};
 	return deps.logger ? withRequestLogging(handler, deps.logger) : handler;
@@ -162,77 +177,3 @@ export const handleRequest: RouteHandler = async (request) => {
 
 	return new Response("Not Found", { status: 404 });
 };
-
-async function parseNotificationServerRequest(
-	request: Request,
-): Promise<
-	| { status: "ok"; request: NotificationServerRequest }
-	| { status: "error"; error: string }
-> {
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		return { status: "error", error: "Malformed JSON body" };
-	}
-	if (!isRecord(body)) {
-		return {
-			status: "error",
-			error: "Malformed notification request: expected object body",
-		};
-	}
-	if (body.type !== "task-outcome" && body.type !== "human-review-required") {
-		return {
-			status: "error",
-			error:
-				"Malformed notification request: type must be 'task-outcome' or 'human-review-required'",
-		};
-	}
-	if (!isNotificationEmailPayload(body.payload)) {
-		return {
-			status: "error",
-			error:
-				"Malformed notification request: payload must include from, to, subject, and text",
-		};
-	}
-	if (body.type === "task-outcome") {
-		return {
-			status: "ok",
-			request: body as unknown as NotificationServerRequest,
-		};
-	}
-	if (typeof body.complexityScore !== "number") {
-		return {
-			status: "error",
-			error: "Malformed notification request: complexityScore must be a number",
-		};
-	}
-	if (typeof body.reason !== "string" || body.reason.trim().length === 0) {
-		return {
-			status: "error",
-			error:
-				"Malformed notification request: reason must be a non-empty string",
-		};
-	}
-	return {
-		status: "ok",
-		request: body as unknown as NotificationServerRequest,
-	};
-}
-
-function isNotificationEmailPayload(
-	value: unknown,
-): value is NotificationServerRequest["payload"] {
-	return (
-		isRecord(value) &&
-		typeof value.from === "string" &&
-		Array.isArray(value.to) &&
-		value.to.every((recipient) => typeof recipient === "string") &&
-		typeof value.subject === "string" &&
-		typeof value.text === "string"
-	);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}

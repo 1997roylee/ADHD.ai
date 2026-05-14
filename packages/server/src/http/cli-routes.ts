@@ -1,7 +1,12 @@
+import { z } from "zod";
 import type { CliExecutor } from "../app.types";
 import { methodNotAllowed } from "./http-utils";
+import { isRecord } from "./zod-utils";
 
 const UNSAFE_RAW_COMMAND_FIELDS = ["command", "cmd", "args", "argv", "shell"];
+const dispatchRequestSchema = z
+	.object({ action: z.string().trim().min(1) })
+	.passthrough();
 
 export async function handleCliRoute(
 	request: Request,
@@ -65,13 +70,16 @@ async function parseDispatchRequest(
 			};
 		}
 	}
+	const result = dispatchRequestSchema.safeParse(body);
+	if (!result.success) {
+		return {
+			status: "error",
+			error: "Malformed dispatch request: action must be a non-empty string",
+		};
+	}
 
 	return {
 		status: "ok",
-		request: body as Record<string, unknown> & { action: string },
+		request: result.data,
 	};
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

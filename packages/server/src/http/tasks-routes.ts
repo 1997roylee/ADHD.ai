@@ -6,17 +6,14 @@ import {
 	isForeignKeyError,
 	methodNotAllowed,
 	notFound,
-	optionalInteger,
-	optionalStringOrNull,
-	optionalTimestampStringOrNull,
 	parseObjectJsonBody,
 	readPathId,
-	requireString,
 } from "./http-utils";
-import type {
-	CreateTaskPayload,
-	UpdateTaskPayload,
-} from "./project-task-api.types";
+import {
+	isNonEmptyObject,
+	parseCreateTaskPayload,
+	parseUpdateTaskPayload,
+} from "./project-task-schemas";
 
 export async function handleTasksRoute(
 	request: Request,
@@ -96,7 +93,7 @@ export async function handleTasksRoute(
 		if (!payload.ok) {
 			return badRequest(payload.error);
 		}
-		if (Object.keys(payload.value).length === 0) {
+		if (!isNonEmptyObject(payload.value)) {
 			return badRequest("Update payload must include at least one field");
 		}
 		if (payload.value.projectId) {
@@ -137,117 +134,4 @@ export async function handleTasksRoute(
 	}
 
 	return methodNotAllowed();
-}
-
-function parseCreateTaskPayload(
-	body: Record<string, unknown>,
-): { ok: true; value: CreateTaskPayload } | { ok: false; error: string } {
-	const projectId = requireString(body.projectId, "projectId");
-	if (!projectId.ok) {
-		return projectId;
-	}
-	const title = requireString(body.title, "title");
-	if (!title.ok) {
-		return title;
-	}
-	const content = requireString(body.content, "content");
-	if (!content.ok) {
-		return content;
-	}
-	const priority = optionalInteger(body.priority, "priority");
-	if (!priority.ok || priority.value === undefined) {
-		return { ok: false, error: "priority must be an integer" };
-	}
-	const status = requireString(body.status, "status");
-	if (!status.ok) {
-		return status;
-	}
-	const creatorId = requireString(body.creatorId, "creatorId");
-	if (!creatorId.ok) {
-		return creatorId;
-	}
-	const dueDate = optionalTimestampStringOrNull(body.dueDate, "dueDate");
-	if (!dueDate.ok) {
-		return dueDate;
-	}
-	const linkedPr = optionalStringOrNull(body.linkedPr, "linkedPr");
-	if (!linkedPr.ok) {
-		return linkedPr;
-	}
-	return {
-		ok: true,
-		value: {
-			projectId: projectId.value,
-			title: title.value,
-			content: content.value,
-			priority: priority.value,
-			status: status.value,
-			creatorId: creatorId.value,
-			dueDate: dueDate.value,
-			linkedPr: linkedPr.value,
-		},
-	};
-}
-
-function parseUpdateTaskPayload(
-	body: Record<string, unknown>,
-): { ok: true; value: UpdateTaskPayload } | { ok: false; error: string } {
-	const update: UpdateTaskPayload = {};
-	if ("projectId" in body) {
-		const projectId = requireString(body.projectId, "projectId");
-		if (!projectId.ok) {
-			return projectId;
-		}
-		update.projectId = projectId.value;
-	}
-	if ("title" in body) {
-		const title = requireString(body.title, "title");
-		if (!title.ok) {
-			return title;
-		}
-		update.title = title.value;
-	}
-	if ("content" in body) {
-		const content = requireString(body.content, "content");
-		if (!content.ok) {
-			return content;
-		}
-		update.content = content.value;
-	}
-	if ("priority" in body) {
-		const priority = optionalInteger(body.priority, "priority");
-		if (!priority.ok || priority.value === undefined) {
-			return { ok: false, error: "priority must be an integer" };
-		}
-		update.priority = priority.value;
-	}
-	if ("status" in body) {
-		const status = requireString(body.status, "status");
-		if (!status.ok) {
-			return status;
-		}
-		update.status = status.value;
-	}
-	if ("creatorId" in body) {
-		const creatorId = requireString(body.creatorId, "creatorId");
-		if (!creatorId.ok) {
-			return creatorId;
-		}
-		update.creatorId = creatorId.value;
-	}
-	if ("dueDate" in body) {
-		const dueDate = optionalTimestampStringOrNull(body.dueDate, "dueDate");
-		if (!dueDate.ok) {
-			return dueDate;
-		}
-		update.dueDate = dueDate.value;
-	}
-	if ("linkedPr" in body) {
-		const linkedPr = optionalStringOrNull(body.linkedPr, "linkedPr");
-		if (!linkedPr.ok) {
-			return linkedPr;
-		}
-		update.linkedPr = linkedPr.value;
-	}
-	return { ok: true, value: update };
 }

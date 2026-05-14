@@ -1,5 +1,32 @@
 import type { RunState } from "adhdai/features/types";
+import { z } from "zod";
+import { isRecord } from "../http/zod-utils";
 import type { NotificationRequest } from "./notifications.types";
+
+const runStateSchema = z
+	.object({
+		projectId: z.string(),
+		projectName: z.string(),
+		updatedAt: z.string(),
+		issue: z.object({
+			key: z.string(),
+			title: z.string(),
+			url: z.string(),
+		}),
+	})
+	.passthrough();
+const taskOutcomeSchema = z.object({
+	type: z.literal("task_outcome"),
+	state: runStateSchema,
+	outcome: z.enum(["done", "blocked"]),
+	errorMessage: z.string().optional(),
+});
+const humanReviewSchema = z.object({
+	type: z.literal("human_review_required"),
+	state: runStateSchema,
+	complexityScore: z.number().finite(),
+	reason: z.string().trim().min(1),
+});
 
 export async function parseNotificationRequest(
 	request: Request,
@@ -37,19 +64,25 @@ function parseTaskOutcome(
 ):
 	| { status: "ok"; request: NotificationRequest }
 	| { status: "error"; error: string } {
-	if (!isRunState(body.state)) {
+	const parsed = taskOutcomeSchema.safeParse(body);
+	if (!parsed.success && !isRunState(body.state)) {
 		return {
 			status: "error",
 			error: "Malformed notification request: state is required",
 		};
 	}
-	if (body.outcome !== "done" && body.outcome !== "blocked") {
+	if (
+		!parsed.success &&
+		body.outcome !== "done" &&
+		body.outcome !== "blocked"
+	) {
 		return {
 			status: "error",
 			error: "Malformed notification request: invalid outcome",
 		};
 	}
 	if (
+		!parsed.success &&
 		body.errorMessage !== undefined &&
 		typeof body.errorMessage !== "string"
 	) {
@@ -58,13 +91,19 @@ function parseTaskOutcome(
 			error: "Malformed notification request: errorMessage must be a string",
 		};
 	}
+	if (!parsed.success) {
+		return {
+			status: "error",
+			error: "Malformed notification request: state is required",
+		};
+	}
 	return {
 		status: "ok",
 		request: {
 			type: "task_outcome",
-			state: body.state,
-			outcome: body.outcome,
-			errorMessage: body.errorMessage,
+			state: parsed.data.state as unknown as RunState,
+			outcome: parsed.data.outcome,
+			errorMessage: parsed.data.errorMessage,
 		},
 	};
 }
@@ -74,35 +113,46 @@ function parseHumanReview(
 ):
 	| { status: "ok"; request: NotificationRequest }
 	| { status: "error"; error: string } {
-	if (!isRunState(body.state)) {
+	const parsed = humanReviewSchema.safeParse(body);
+	if (!parsed.success && !isRunState(body.state)) {
 		return {
 			status: "error",
 			error: "Malformed notification request: state is required",
 		};
 	}
 	if (
-		typeof body.complexityScore !== "number" ||
-		!Number.isFinite(body.complexityScore)
+		!parsed.success &&
+		(typeof body.complexityScore !== "number" ||
+			!Number.isFinite(body.complexityScore))
 	) {
 		return {
 			status: "error",
 			error: "Malformed notification request: complexityScore must be a number",
 		};
 	}
-	if (typeof body.reason !== "string" || body.reason.trim().length === 0) {
+	if (
+		!parsed.success &&
+		(typeof body.reason !== "string" || body.reason.trim().length === 0)
+	) {
 		return {
 			status: "error",
 			error:
 				"Malformed notification request: reason must be a non-empty string",
 		};
 	}
+	if (!parsed.success) {
+		return {
+			status: "error",
+			error: "Malformed notification request: state is required",
+		};
+	}
 	return {
 		status: "ok",
 		request: {
 			type: "human_review_required",
-			state: body.state,
-			complexityScore: body.complexityScore,
-			reason: body.reason,
+			state: parsed.data.state as unknown as RunState,
+			complexityScore: parsed.data.complexityScore,
+			reason: parsed.data.reason,
 		},
 	};
 }
@@ -121,8 +171,4 @@ function isRunState(value: unknown): value is RunState {
 		typeof issue.title === "string" &&
 		typeof issue.url === "string"
 	);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

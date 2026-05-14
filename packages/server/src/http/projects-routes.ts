@@ -6,15 +6,14 @@ import {
 	isForeignKeyError,
 	methodNotAllowed,
 	notFound,
-	optionalStringOrNull,
 	parseObjectJsonBody,
 	readPathId,
-	requireString,
 } from "./http-utils";
-import type {
-	CreateProjectPayload,
-	UpdateProjectPayload,
-} from "./project-task-api.types";
+import {
+	isNonEmptyObject,
+	parseCreateProjectPayload,
+	parseUpdateProjectPayload,
+} from "./project-task-schemas";
 
 export async function handleProjectsRoute(
 	request: Request,
@@ -91,7 +90,7 @@ export async function handleProjectsRoute(
 		if (!payload.ok) {
 			return badRequest(payload.error);
 		}
-		if (Object.keys(payload.value).length === 0) {
+		if (!isNonEmptyObject(payload.value)) {
 			return badRequest("Update payload must include at least one field");
 		}
 		if (payload.value.boardId) {
@@ -132,87 +131,4 @@ export async function handleProjectsRoute(
 	}
 
 	return methodNotAllowed();
-}
-
-function parseCreateProjectPayload(
-	body: Record<string, unknown>,
-): { ok: true; value: CreateProjectPayload } | { ok: false; error: string } {
-	const boardId = requireString(body.boardId, "boardId");
-	if (!boardId.ok) {
-		return boardId;
-	}
-	const name = requireString(body.name, "name");
-	if (!name.ok) {
-		return name;
-	}
-	const ownerId = requireString(body.ownerId, "ownerId");
-	if (!ownerId.ok) {
-		return ownerId;
-	}
-	const externalProjectId = optionalStringOrNull(
-		body.externalProjectId,
-		"externalProjectId",
-	);
-	if (!externalProjectId.ok) {
-		return externalProjectId;
-	}
-	const description = optionalStringOrNull(body.description, "description");
-	if (!description.ok) {
-		return description;
-	}
-	return {
-		ok: true,
-		value: {
-			boardId: boardId.value,
-			name: name.value,
-			ownerId: ownerId.value,
-			externalProjectId: externalProjectId.value,
-			description: description.value,
-		},
-	};
-}
-
-function parseUpdateProjectPayload(
-	body: Record<string, unknown>,
-): { ok: true; value: UpdateProjectPayload } | { ok: false; error: string } {
-	const update: UpdateProjectPayload = {};
-	if ("boardId" in body) {
-		const boardId = requireString(body.boardId, "boardId");
-		if (!boardId.ok) {
-			return boardId;
-		}
-		update.boardId = boardId.value;
-	}
-	if ("name" in body) {
-		const name = requireString(body.name, "name");
-		if (!name.ok) {
-			return name;
-		}
-		update.name = name.value;
-	}
-	if ("ownerId" in body) {
-		const ownerId = requireString(body.ownerId, "ownerId");
-		if (!ownerId.ok) {
-			return ownerId;
-		}
-		update.ownerId = ownerId.value;
-	}
-	if ("externalProjectId" in body) {
-		const externalProjectId = optionalStringOrNull(
-			body.externalProjectId,
-			"externalProjectId",
-		);
-		if (!externalProjectId.ok) {
-			return externalProjectId;
-		}
-		update.externalProjectId = externalProjectId.value;
-	}
-	if ("description" in body) {
-		const description = optionalStringOrNull(body.description, "description");
-		if (!description.ok) {
-			return description;
-		}
-		update.description = description.value;
-	}
-	return { ok: true, value: update };
 }

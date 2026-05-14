@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export async function parseJsonBody(
 	request: Request,
 ): Promise<{ ok: true; value: unknown } | { ok: false; error: string }> {
@@ -15,11 +17,9 @@ export function validateCreatePayload<T extends object>(
 	if (!isRecord(value)) {
 		return { ok: false, error: "Malformed request: expected object body" };
 	}
-	const keys = Object.keys(value);
-	for (const key of keys) {
-		if (!allowedFields.includes(key)) {
-			return { ok: false, error: `Malformed request: unknown field '${key}'` };
-		}
+	const fieldError = findUnknownField(value, allowedFields);
+	if (fieldError) {
+		return { ok: false, error: fieldError };
 	}
 	for (const field of allowedFields) {
 		if (!(field in value)) {
@@ -28,14 +28,15 @@ export function validateCreatePayload<T extends object>(
 				error: `Malformed request: missing required field '${field}'`,
 			};
 		}
-		if (typeof value[field] !== "string" || value[field].trim().length === 0) {
-			return {
-				ok: false,
-				error: `Malformed request: field '${field}' must be a non-empty string`,
-			};
-		}
 	}
-	return { ok: true, value: value as T };
+	const result = createStringObjectSchema(allowedFields).safeParse(value);
+	if (!result.success) {
+		return {
+			ok: false,
+			error: fieldValidationError(result.error, allowedFields),
+		};
+	}
+	return { ok: true, value: result.data as T };
 }
 
 export function validateUpdatePayload<T extends object>(
@@ -52,20 +53,50 @@ export function validateUpdatePayload<T extends object>(
 			error: "Malformed request: expected at least one field",
 		};
 	}
-	for (const key of keys) {
-		if (!allowedFields.includes(key)) {
-			return { ok: false, error: `Malformed request: unknown field '${key}'` };
-		}
-		if (typeof value[key] !== "string" || value[key].trim().length === 0) {
-			return {
-				ok: false,
-				error: `Malformed request: field '${key}' must be a non-empty string`,
-			};
-		}
+	const fieldError = findUnknownField(value, allowedFields);
+	if (fieldError) {
+		return { ok: false, error: fieldError };
 	}
-	return { ok: true, value: value as T };
+	const result = createStringObjectSchema(allowedFields)
+		.partial()
+		.safeParse(value);
+	if (!result.success) {
+		return {
+			ok: false,
+			error: fieldValidationError(result.error, allowedFields),
+		};
+	}
+	return { ok: true, value: result.data as T };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createStringObjectSchema(fields: readonly string[]): z.ZodObject {
+	return z.object(
+		Object.fromEntries(
+			fields.map((field) => [field, z.string().trim().min(1)]),
+		),
+	);
+}
+
+function findUnknownField(
+	value: Record<string, unknown>,
+	allowedFields: readonly string[],
+): string | null {
+	for (const key of Object.keys(value)) {
+		if (!allowedFields.includes(key)) {
+			return `Malformed request: unknown field '${key}'`;
+		}
+	}
+	return null;
+}
+
+function fieldValidationError(
+	error: z.ZodError,
+	allowedFields: readonly string[],
+): string {
+	const field = String(error.issues[0]?.path[0] ?? allowedFields[0] ?? "field");
+	return `Malformed request: field '${field}' must be a non-empty string`;
 }

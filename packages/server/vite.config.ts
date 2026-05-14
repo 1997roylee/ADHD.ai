@@ -11,7 +11,15 @@ export default defineConfig({
 		emptyOutDir: true,
 		target: "es2022",
 		rollupOptions: {
-			external: ["bun"],
+			external: [
+				/^node:/,
+				/^adhdai\//,
+				"bun",
+				"express",
+				"express-openapi-validator",
+				"swagger-ui-express",
+				"zod",
+			],
 		},
 	},
 });

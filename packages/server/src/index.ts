@@ -3,6 +3,8 @@ import { CliCommandExecutor } from "adhdai/features/server/cli-command-executor"
 import { createHandleRequest } from "./app";
 import { createBoardRepository } from "./board";
 import { initializeServerDatabase } from "./db";
+import { createExpressApp, listenExpressApp } from "./express-server";
+import type { ServerInstance } from "./express-server.types";
 import {
 	logger,
 	normalizeError,
@@ -26,15 +28,14 @@ const DEFAULT_SERVER_PORT = 3001;
 
 export async function startServer(
 	port = resolveServerPort(process.env),
-): Promise<Bun.Server<undefined>> {
+): Promise<ServerInstance> {
 	const databasePath =
 		process.env.PIV_SERVER_DATABASE_PATH ?? DEFAULT_SERVER_DB_PATH;
 	const cwd = process.cwd();
 	logger.info({ port, databasePath, cwd }, "Starting server");
 	const serverDatabase = await initializeServerDatabase(databasePath);
-	const server = Bun.serve({
-		port,
-		fetch: createHandleRequest({
+	const app = createExpressApp(
+		createHandleRequest({
 			db: serverDatabase.db,
 			cliExecutor: new CliCommandExecutor({
 				cwd,
@@ -52,8 +53,14 @@ export async function startServer(
 			repositories: createReadRepositories(serverDatabase),
 			logger,
 		}),
-	});
-	logger.info({ port: server.port, databasePath, cwd }, "Server started");
+	);
+	const server = await listenExpressApp(app, port);
+	const address = server.address();
+	const listeningPort = typeof address === "object" ? address?.port : port;
+	logger.info(
+		{ port: listeningPort ?? port, databasePath, cwd },
+		"Server started",
+	);
 	return server;
 }
 
