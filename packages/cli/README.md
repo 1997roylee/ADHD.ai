@@ -173,7 +173,8 @@ Output shape:
 
 Usage notes:
 
-- In non-interactive mode, `--request <TEXT>` is required and cannot be empty.
+- In non-interactive mode, a non-empty request is required, provided either as positional `<REQUEST>` or `--request <TEXT>`.
+- In non-interactive mode, `--request -` is not allowed.
 - `--clarifications-json` must be valid JSON array entries with non-empty `question` and `answer` strings.
 
 ### skills list
