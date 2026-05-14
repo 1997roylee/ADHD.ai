@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import type { AppDeps } from "../app.types";
+import type { ServerDatabase } from "../db";
 import { agentsTable, skillsTable } from "../db";
 import {
 	parseJsonBody,
@@ -37,6 +37,10 @@ const SKILL_UPDATE_FIELDS = [
 	"updatedAt",
 ] as const;
 
+interface EntityCrudDeps {
+	db: ServerDatabase["db"];
+}
+
 export function matchCrudRoute(pathname: string): CrudRouteMatch | null {
 	const match = pathname.match(/^\/api\/(agents|skills)(?:\/([^/]+))?$/);
 	if (!match) {
@@ -47,7 +51,7 @@ export function matchCrudRoute(pathname: string): CrudRouteMatch | null {
 
 export async function handleEntityCrudRequest(
 	request: Request,
-	deps: AppDeps,
+	deps: EntityCrudDeps,
 	route: CrudRouteMatch,
 ): Promise<CrudResponseResult> {
 	if (route.entity === "agents") {
@@ -58,7 +62,7 @@ export async function handleEntityCrudRequest(
 
 async function handleAgentRequest(
 	request: Request,
-	deps: AppDeps,
+	deps: EntityCrudDeps,
 	id: string | null,
 ): Promise<CrudResponseResult> {
 	if (id === null) {
@@ -142,7 +146,7 @@ async function handleAgentRequest(
 
 async function handleSkillRequest(
 	request: Request,
-	deps: AppDeps,
+	deps: EntityCrudDeps,
 	id: string | null,
 ): Promise<CrudResponseResult> {
 	if (id === null) {

@@ -18,6 +18,16 @@ export interface TaskIntakeLinearClient {
 	createBacklogTask(input: TaskIntakeTask): Promise<CreatedLinearIssueRef>;
 }
 
+export interface RunTaskIntakeOptions {
+	request: string;
+	maxClarificationRounds?: number;
+	initialAnswers?: TaskIntakeAnswer[];
+	providedAnswers?: TaskIntakeAnswer[];
+	allowInteractiveQuestions?: boolean;
+	nonInteractive?: boolean;
+	askQuestion(question: string): Promise<string>;
+}
+
 export type TaskIntakeRunResult =
 	| { status: "created"; issue: CreatedLinearIssueRef }
 	| { status: "needs_info"; questions: string[] };

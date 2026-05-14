@@ -1,11 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { createHandleRequest } from "../src/app";
 import type { AppDeps } from "../src/app.types";
-import { createReadRepositories } from "../src/repositories";
-import {
-	createServerTestDatabase,
-	seedServerTestDatabase,
-} from "./server-db-test-helpers";
+
+type TestNotificationSender = NonNullable<AppDeps["notificationSender"]>;
 
 describe("CLI server routes", () => {
 	it("dispatches structured requests and returns execution results", async () => {
@@ -382,14 +379,13 @@ describe("CLI server routes", () => {
 
 function createDeps(overrides?: {
 	execute?: AppDeps["cliExecutor"]["execute"];
-	sendNotification?: AppDeps["notificationSender"]["sendNotification"];
+	sendNotification?: TestNotificationSender["sendNotification"];
 	history?: AppDeps["cliExecutor"]["getHistory"] extends () => infer T
 		? T
 		: never;
 	repositories?: AppDeps["repositories"];
 }): AppDeps {
 	return {
-		persistence: {} as AppDeps["persistence"],
 		cliExecutor: {
 			execute:
 				overrides?.execute ??
@@ -398,6 +394,9 @@ function createDeps(overrides?: {
 					request,
 				})),
 			getHistory: () => overrides?.history ?? [],
+		},
+		notificationSender: {
+			sendNotification: overrides?.sendNotification ?? (async () => {}),
 		},
 		notificationService: {
 			send: async () => ({ status: "ok" }),

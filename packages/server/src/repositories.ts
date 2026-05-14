@@ -1,4 +1,4 @@
-import type { ServerDatabase } from "adhdai/features/server";
+import type { ServerDatabase } from "./db";
 import type {
 	AgentRecord,
 	CommandHistoryRecord,

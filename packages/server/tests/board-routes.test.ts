@@ -3,6 +3,8 @@ import { createHandleRequest } from "../src/app";
 import type { AppDeps } from "../src/app.types";
 import { REQUIRED_BOARD_STATUSES } from "../src/board";
 
+type TestBoardRepository = NonNullable<AppDeps["boardRepository"]>;
+
 describe("board routes", () => {
 	it("lists workspace-scoped projects", async () => {
 		const app = createHandleRequest(
@@ -115,8 +117,8 @@ describe("board routes", () => {
 });
 
 function createDeps(overrides?: {
-	listWorkspaceProjects?: AppDeps["boardRepository"]["listWorkspaceProjects"];
-	getWorkspaceProjectBoard?: AppDeps["boardRepository"]["getWorkspaceProjectBoard"];
+	listWorkspaceProjects?: TestBoardRepository["listWorkspaceProjects"];
+	getWorkspaceProjectBoard?: TestBoardRepository["getWorkspaceProjectBoard"];
 }): AppDeps {
 	return {
 		cliExecutor: {

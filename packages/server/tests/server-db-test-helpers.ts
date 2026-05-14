@@ -9,12 +9,16 @@ import {
 	jobsTable,
 	skillsTable,
 	tokenUsageTable,
-} from "adhdai/features/server";
+} from "../src/db";
 
 export interface TestDatabase {
 	database: ServerDatabase;
+	db: ServerDatabase["db"];
+	path: string;
 	cleanup(): Promise<void>;
 }
+
+export type DrizzleServerTestDatabase = TestDatabase;
 
 export async function createServerTestDatabase(): Promise<TestDatabase> {
 	const tempDir = await mkdtemp(path.join(os.tmpdir(), "adhd-server-db-"));
@@ -23,12 +27,16 @@ export async function createServerTestDatabase(): Promise<TestDatabase> {
 
 	return {
 		database,
+		db: database.db,
+		path: dbPath,
 		async cleanup() {
 			await database.close();
 			await rm(tempDir, { recursive: true, force: true });
 		},
 	};
 }
+
+export const createDrizzleServerTestDatabase = createServerTestDatabase;
 
 export async function seedServerTestDatabase(
 	database: ServerDatabase,

@@ -247,10 +247,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 	const requestJsonWithBase = (
 		path: string,
 		requestOptions?: HealthRequestOptions,
-	) => requestJson(baseUrl, path, fetchFn, headers, requestOptions);
+	) => requestJson(baseUrl, path, "GET", fetchFn, headers, requestOptions);
 	const boardApiMethods = createBoardApiMethods(requestJsonWithBase);
 
 	return {
+		...boardApiMethods,
 		async getHealth(
 			requestOptions?: HealthRequestOptions,
 		): Promise<HealthResponse> {
