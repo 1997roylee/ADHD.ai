@@ -11,9 +11,6 @@ import * as OpenApiValidator from "express-openapi-validator";
 import swaggerUi from "swagger-ui-express";
 import type { RouteHandler } from "./app.types";
 
-const DYNAMIC_PORT_ATTEMPTS = 25;
-const DYNAMIC_PORT_MIN = 20_000;
-const DYNAMIC_PORT_MAX = 60_000;
 const OPENAPI_SPEC_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../../..",
@@ -55,50 +52,11 @@ export function createExpressApp(handler: RouteHandler): Express {
 }
 
 export function listenExpressApp(app: Express, port: number): Promise<Server> {
-	if (port !== 0) {
-		return listenOnce(app, port);
-	}
-	return listenWithDynamicPort(app);
-}
-
-async function listenWithDynamicPort(app: Express): Promise<Server> {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < DYNAMIC_PORT_ATTEMPTS; attempt += 1) {
-		try {
-			return await listenOnce(app, randomDynamicPort());
-		} catch (error) {
-			if (!isAddrInUseError(error)) {
-				throw error;
-			}
-			lastError = error;
-		}
-	}
-	throw (
-		lastError ??
-		new Error("Failed to bind dynamic port for Express server adapter")
-	);
-}
-
-function listenOnce(app: Express, port: number): Promise<Server> {
 	return new Promise((resolve, reject) => {
 		const server = app.listen(port);
 		server.once("listening", () => resolve(server));
 		server.once("error", reject);
 	});
-}
-
-function randomDynamicPort(): number {
-	return (
-		Math.floor(Math.random() * (DYNAMIC_PORT_MAX - DYNAMIC_PORT_MIN + 1)) +
-		DYNAMIC_PORT_MIN
-	);
-}
-
-function isAddrInUseError(error: unknown): boolean {
-	if (typeof error !== "object" || error === null) {
-		return false;
-	}
-	return "code" in error && error.code === "EADDRINUSE";
 }
 
 function toWebRequest(request: ExpressRequest): Request {
