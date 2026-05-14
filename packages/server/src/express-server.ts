@@ -11,8 +11,9 @@ import * as OpenApiValidator from "express-openapi-validator";
 import swaggerUi from "swagger-ui-express";
 import type { RouteHandler } from "./app.types";
 
-let nextFallbackPort = 41_000 + (process.pid % 1_000);
 const MAX_DYNAMIC_PORT_ATTEMPTS = 200;
+const EPHEMERAL_PORT_MIN = 49_152;
+const EPHEMERAL_PORT_MAX = 65_535;
 const OPENAPI_SPEC_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../../..",
@@ -61,17 +62,14 @@ export function listenExpressApp(app: Express, port: number): Promise<Server> {
 }
 
 async function listenWithDynamicPortRetry(app: Express): Promise<Server> {
-	let attempt = 0;
-	let candidatePort = 0;
-	while (attempt < MAX_DYNAMIC_PORT_ATTEMPTS) {
+	for (let attempt = 0; attempt < MAX_DYNAMIC_PORT_ATTEMPTS; attempt += 1) {
+		const candidatePort = attempt === 0 ? 0 : randomEphemeralPort();
 		try {
 			return await listenOnPort(app, candidatePort);
 		} catch (error) {
 			if (!isAddrInUseError(error)) {
 				throw error;
 			}
-			candidatePort = nextAvailableFallbackPort();
-			attempt += 1;
 		}
 	}
 	throw new Error(
@@ -87,12 +85,6 @@ function listenOnPort(app: Express, port: number): Promise<Server> {
 	});
 }
 
-function nextAvailableFallbackPort(): number {
-	const port = nextFallbackPort;
-	nextFallbackPort += 1;
-	return port;
-}
-
 function isAddrInUseError(error: unknown): boolean {
 	return (
 		typeof error === "object" &&
@@ -100,6 +92,11 @@ function isAddrInUseError(error: unknown): boolean {
 		"code" in error &&
 		(error as { code?: string }).code === "EADDRINUSE"
 	);
+}
+
+function randomEphemeralPort(): number {
+	const spread = EPHEMERAL_PORT_MAX - EPHEMERAL_PORT_MIN + 1;
+	return EPHEMERAL_PORT_MIN + Math.floor(Math.random() * spread);
 }
 
 function toWebRequest(request: ExpressRequest): Request {

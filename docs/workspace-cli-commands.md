@@ -19,6 +19,39 @@ Use one of these forms:
 5. Initial setup completed with `setup`, then validated with `setup --check`.
 6. A valid project ID available from the `projects` command output.
 
+## Configuration Coverage
+
+The commands below read from the resolved runtime project config (from `adhd-ai.config.ts` plus optional `adhd-ai.local.config.ts` overrides). The most relevant fields are:
+
+- `projects[].id`: project identifier used by `--project`.
+- `projects[].workspacePath`: where run state is stored and read.
+- `projects[].executionPath`: where workflow execution happens.
+- `projects[].linear`: Linear credentials, status IDs, and routing metadata.
+- `projects[].github`: repository owner/name/base branch and PR/merge behavior.
+- `projects[].workflow`: polling, concurrency, and isolated worktree behavior.
+- `projects[].skills`: skills root and stage skill files (`plan`, `implement`, `reviewTest`, `githubComment`).
+
+Command-specific configuration dependencies:
+
+- `setup`:
+  - Writes/validates local setup data used to resolve runtime config and credentials.
+  - `setup --check` validates required config and environment for configured projects (for example Linear API key, execution path, and required skill files).
+- `projects`:
+  - Reads configured `projects[]` entries and prints each project ID plus resolved `executionPath` and `workspacePath`.
+- `run`:
+  - Uses project routing (`linear.projectId` when configured), Linear status/label mappings, and GitHub repo settings.
+  - Uses `workflow.issueConcurrency`, polling settings, and `workflow.isolatedWorktrees` defaults when corresponding CLI flags are not provided.
+  - Uses project `executionPath` and `workspacePath` for run orchestration and run-state persistence.
+- `status`:
+  - Requires `projectId` that resolves to a configured project.
+  - Reads run-state files under the resolved project `workspacePath`.
+- `task create`:
+  - Uses project `linear` settings to create backlog tasks in the configured Linear team/project/status.
+  - Uses configured agent backend/model settings to run intake and clarification passes.
+- `skills` (`list`, `add`, `update`, `remove`):
+  - Operates on the selected project's `skills.root`.
+  - `--project` changes which configured project's skills root is targeted.
+
 ## Command Reference
 
 ### `setup`
@@ -41,6 +74,11 @@ Expected behavior:
 - `setup` runs the guided setup wizard.
 - `setup --check` runs setup validation checks only.
 
+Configuration notes:
+
+- Reads/writes local setup artifacts that feed runtime config resolution.
+- Validation checks are project-aware and fail when required project config/env is missing.
+
 ### `projects`
 
 Syntax:
@@ -59,6 +97,10 @@ Expected behavior:
 
 - Lists configured projects.
 - Each line is tab-separated and includes project ID, name, execution path, and state path.
+
+Configuration notes:
+
+- Output comes directly from configured `projects[]` and resolved path settings.
 
 ### `run`
 
@@ -85,6 +127,12 @@ Expected behavior:
 - Numeric flags (`--concurrency`, `--poll-interval-ms`, `--max-poll-cycles`) must be positive integers.
 - `--isolated-worktrees` enables isolated per-issue worktree mode when supported by config.
 
+Configuration notes:
+
+- `--project` selects a configured project; `--all-projects` runs across all configured projects.
+- Polling/concurrency/worktree defaults come from project `workflow` config when flags are omitted.
+- Linear and GitHub behavior for each issue run depends on that project's `linear` and `github` config.
+
 Validation notes:
 
 - `--project` and `--all-projects` cannot be used together.
@@ -107,6 +155,10 @@ Expected behavior:
 
 - Loads run state for the issue and prints JSON with a computed stage display value.
 - Prints a not-found message if no run state exists for that project/issue key.
+
+Configuration notes:
+
+- Status lookup resolves to the selected project's state storage under `workspacePath`.
 
 Validation notes:
 
@@ -139,6 +191,11 @@ Expected behavior:
 - Non-interactive mode (`--non-interactive`):
   - Requires `--request <TEXT>` and does not prompt.
   - Returns unresolved clarification questions instead of creating an issue when context remains ambiguous.
+
+Configuration notes:
+
+- Uses selected project `linear` settings for backlog task creation target and status mapping.
+- Uses selected project backend/model configuration to run clarification and intake logic.
 
 Validation notes:
 
@@ -173,6 +230,10 @@ Expected behavior:
 - `add` creates a skill document and prints created name/path.
 - `update` updates an existing skill and prints updated name/path.
 - `remove` deletes a skill and prints removed name/path.
+
+Configuration notes:
+
+- All operations target the selected project's `skills.root`.
 
 Validation notes:
 
