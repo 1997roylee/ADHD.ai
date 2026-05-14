@@ -2,10 +2,9 @@ import type { AppDeps, RouteHandler } from "./app.types";
 import { handleEntityCrudRequest, matchCrudRoute } from "./routes/entity-crud";
 
 const UNSAFE_RAW_COMMAND_FIELDS = ["command", "cmd", "args", "argv", "shell"];
-const WORKSPACE_PROJECTS_PATTERN =
-	/^\/api\/workspaces\/([^/]+)\/projects(?:\/)?$/;
-const PROJECT_BOARD_PATTERN =
-	/^\/api\/workspaces\/([^/]+)\/projects\/([^/]+)\/board(?:\/)?$/;
+const WORKSPACE_PROJECTS_ROUTE = /^\/api\/workspaces\/([^/]+)\/projects\/?$/;
+const WORKSPACE_PROJECT_BOARD_ROUTE =
+	/^\/api\/workspaces\/([^/]+)\/projects\/([^/]+)\/board\/?$/;
 
 export function createHandleRequest(deps: AppDeps): RouteHandler {
 	const boardReadModels = deps.boardReadModels;
@@ -76,6 +75,39 @@ export function createHandleRequest(deps: AppDeps): RouteHandler {
 				return new Response(null, { status: result.status });
 			}
 			return Response.json(result.body, { status: result.status });
+		}
+		const projectMatch = pathname.match(WORKSPACE_PROJECTS_ROUTE);
+		if (projectMatch) {
+			if (request.method !== "GET") {
+				return Response.json({ error: "Method Not Allowed" }, { status: 405 });
+			}
+			const workspaceId = decodeURIComponent(projectMatch[1] ?? "");
+			if (workspaceId.length === 0) {
+				return Response.json({ error: "Not Found" }, { status: 404 });
+			}
+			const projects =
+				await deps.boardRepository.listWorkspaceProjects(workspaceId);
+			return Response.json({ workspaceId, projects });
+		}
+
+		const boardMatch = pathname.match(WORKSPACE_PROJECT_BOARD_ROUTE);
+		if (boardMatch) {
+			if (request.method !== "GET") {
+				return Response.json({ error: "Method Not Allowed" }, { status: 405 });
+			}
+			const workspaceId = decodeURIComponent(boardMatch[1] ?? "");
+			const projectId = decodeURIComponent(boardMatch[2] ?? "");
+			if (workspaceId.length === 0 || projectId.length === 0) {
+				return Response.json({ error: "Not Found" }, { status: 404 });
+			}
+			const board = await deps.boardRepository.getWorkspaceProjectBoard(
+				workspaceId,
+				projectId,
+			);
+			if (!board) {
+				return Response.json({ error: "Not Found" }, { status: 404 });
+			}
+			return Response.json(board);
 		}
 
 		return new Response("Not Found", { status: 404 });

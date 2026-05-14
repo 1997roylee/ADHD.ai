@@ -226,6 +226,9 @@ function createDeps(overrides?: {
 				})),
 			getHistory: () => overrides?.history ?? [],
 		},
-		db: {} as AppDeps["db"],
+		boardRepository: {
+			listWorkspaceProjects: async () => [],
+			getWorkspaceProjectBoard: async () => null,
+		},
 	};
 }

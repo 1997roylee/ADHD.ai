@@ -1,7 +1,7 @@
 import path from "node:path";
 import { CliCommandExecutor } from "adhdai/features/server/cli-command-executor";
 import { createHandleRequest } from "./app";
-import { createBoardReadModels } from "./board-read-models";
+import { createBoardRepository } from "./board";
 import { initializeServerDatabase } from "./db";
 
 const DEFAULT_SERVER_DB_PATH = path.join(
@@ -24,11 +24,11 @@ export async function startServer(port = 3000): Promise<Bun.Server<undefined>> {
 				command: "bun",
 				baseArgs: ["run", "./packages/cli/src/index.ts"],
 			}),
-			boardReadModels: createBoardReadModels(serverDatabase.db),
+			boardRepository: createBoardRepository(serverDatabase.db),
 		}),
 	});
 }
 
 if (import.meta.main) {
-	await startServer();
+	void startServer();
 }

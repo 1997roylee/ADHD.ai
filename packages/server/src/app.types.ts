@@ -3,7 +3,7 @@ import type {
 	CliCommandExecutionResult,
 	CliCommandRequest,
 } from "adhdai/features/server";
-import type { ServerDatabase } from "./db";
+import type { BoardRepository } from "./board";
 
 export interface CliExecutor {
 	execute(request: CliCommandRequest): Promise<CliCommandExecutionResult>;
@@ -12,7 +12,7 @@ export interface CliExecutor {
 
 export interface AppDeps {
 	cliExecutor: CliExecutor;
-	boardReadModels?: BoardReadModels;
+	boardRepository: BoardRepository;
 }
 
 export type RouteHandler = (request: Request) => Response | Promise<Response>;
