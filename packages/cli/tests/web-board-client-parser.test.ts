@@ -11,7 +11,7 @@ function okJsonResponse(payload: unknown): Response {
 describe("web board client parser", () => {
 	it("parses workspace project payloads", async () => {
 		const fetchFn = (async (input: URL | RequestInfo) => {
-			expect(String(input)).toBe("/api/server/api/workspaces/ws-1/projects");
+			expect(String(input)).toBe("/api/workspaces/ws-1/projects");
 			return okJsonResponse({
 				workspaceId: "ws-1",
 				projects: [
@@ -28,7 +28,7 @@ describe("web board client parser", () => {
 				],
 			});
 		}) as typeof fetch;
-		const client = createApiClient({ baseUrl: "/api/server", fetchFn });
+		const client = createApiClient({ fetchFn });
 
 		const projects = await client.listWorkspaceProjects("ws-1");
 
@@ -71,7 +71,7 @@ describe("web board client parser", () => {
 					},
 				],
 			})) as unknown as typeof fetch;
-		const client = createApiClient({ baseUrl: "/api/server", fetchFn });
+		const client = createApiClient({ fetchFn });
 
 		await expect(client.getProjectBoard("ws-1", "project-1")).rejects.toThrow(
 			"Invalid /api/tasks response field 'priority'",

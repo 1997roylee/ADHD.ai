@@ -9,12 +9,12 @@ Current branch state:
 Fallback implemented:
 - `client.types.ts` defines typed request/response contracts.
 - `client.ts` provides a minimal typed `fetch` client for the current server API surface (`GET /health`).
-- `web-client.ts` creates a browser client that targets `/api/server/*` so Next.js can proxy to the server package.
+- `web-client.ts` creates a browser client that targets root-relative server paths so Next.js can proxy to the server package.
 - `command-stream-client.ts` streams CLI command frames over `/api/cli/stream` WebSocket endpoints.
 - `client.typecheck.ts` adds compile-time usage coverage so `bun run --filter web typecheck` verifies the client contract.
 
 Runtime wiring:
-- `packages/web/next.config.ts` rewrites `/api/server/:path*` to `${DEVOS_SERVER_BASE_URL}/:path*`.
+- `packages/web/next.config.ts` rewrites `/api/:path*` to `${DEVOS_SERVER_BASE_URL}/api/:path*` and `/health` to `${DEVOS_SERVER_BASE_URL}/health`.
 - `DEVOS_SERVER_BASE_URL` defaults to `http://127.0.0.1:3001` when unset.
 - Browser WebSocket streams go through the server-owned `/api/cli/stream` endpoint: `web -> server /api/cli/stream -> CLI daemon`.
 - `NEXT_PUBLIC_DEVOS_SERVER_WS_URL` can override the browser stream target, but it must point at the server stream endpoint, not the CLI daemon.

@@ -27,6 +27,7 @@ const requestSchema = z.object({
 	projectId: z.string().trim().min(1).optional(),
 	answers: z.array(answerSchema).optional(),
 });
+const UNASSIGNED_TASK_CREATOR_ID = "member-1";
 
 export async function handleTaskChatCreateRoute(
 	request: Request,
@@ -75,9 +76,6 @@ export async function composeTaskChatCreate(
 		return intake.value;
 	}
 	const { issue, task: resolvedTask } = intake.value;
-	if (!input.projectId) {
-		return { status: "created", issue };
-	}
 	const created = await settle(() =>
 		deps.createBoardTask(input, resolvedTask, issue.url),
 	);
@@ -137,28 +135,32 @@ async function createBoardTask(
 	_issueUrl: string,
 ): Promise<BoardTaskRow> {
 	const projectId = input.projectId;
-	if (!projectId) {
-		throw new Error("Project not selected");
-	}
-	const [project] = await db
-		.select({ id: boardProjectsTable.id, ownerId: boardProjectsTable.ownerId })
-		.from(boardProjectsTable)
-		.where(eq(boardProjectsTable.id, projectId));
-	if (!project) {
-		throw new Error("Project not found");
+	let project: { id: string; ownerId: string } | null = null;
+	if (projectId) {
+		const [selectedProject] = await db
+			.select({
+				id: boardProjectsTable.id,
+				ownerId: boardProjectsTable.ownerId,
+			})
+			.from(boardProjectsTable)
+			.where(eq(boardProjectsTable.id, projectId));
+		if (!selectedProject) {
+			throw new Error("Project not found");
+		}
+		project = selectedProject;
 	}
 	const now = new Date().toISOString();
 	const [created] = await db
 		.insert(boardTasksTable)
 		.values({
 			id: crypto.randomUUID(),
-			projectId: project.id,
+			projectId: project?.id ?? null,
 			title: task.title,
 			content: task.description,
 			priority: 1,
 			status: REQUIRED_BOARD_STATUSES[0],
 			dueDate: null,
-			creatorId: project.ownerId,
+			creatorId: project?.ownerId ?? UNASSIGNED_TASK_CREATOR_ID,
 			linkedPr: null,
 			createdAt: now,
 			updatedAt: now,

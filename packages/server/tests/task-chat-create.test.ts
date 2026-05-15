@@ -122,7 +122,7 @@ describe("chat task create route", () => {
 		});
 	});
 
-	it("creates a Linear issue without a board task when project id is omitted", async () => {
+	it("creates an unassigned board task when project id is omitted", async () => {
 		testDatabase = await createDrizzleServerTestDatabase();
 		const calls: unknown[] = [];
 		const app = createTaskChatCreateTestApp(
@@ -152,11 +152,22 @@ describe("chat task create route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({
-			status: "created",
-			issue: createdTaskChatIssue(),
-		});
-		expect(await testDatabase.db.select().from(boardTasksTable)).toEqual([]);
+		const body = (await response.json()) as {
+			status: string;
+			issue: TaskChatCreateLinearIssue;
+			task: BoardTaskRow;
+		};
+		expect(body.status).toBe("created");
+		expect(body.issue).toEqual(createdTaskChatIssue());
+		expect(body.task.projectId).toBeNull();
+		expect(body.task.status).toBe("planning");
+		expect(body.task.linkedPr).toBe("https://linear.example/ROY-1");
+		const tasks = await testDatabase.db.select().from(boardTasksTable);
+		expect(tasks).toHaveLength(1);
+		expect(tasks[0]?.id).toBe(body.task.id);
+		expect(tasks[0]?.projectId).toBeNull();
+		expect(tasks[0]?.status).toBe("planning");
+		expect(tasks[0]?.linkedPr).toBe("https://linear.example/ROY-1");
 		expect(calls).toEqual([
 			{
 				action: "task",

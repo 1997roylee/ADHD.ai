@@ -129,7 +129,7 @@ describe("web api client task create", () => {
 	});
 
 	it("defaults browser websocket streams to the server proxy endpoint", () => {
-		expect(resolveWebServerProxyWsUrl({})).toBe("/api/server/api/cli/stream");
+		expect(resolveWebServerProxyWsUrl({})).toBe("/api/cli/stream");
 	});
 
 	it("uses configured public server websocket stream endpoints", () => {
