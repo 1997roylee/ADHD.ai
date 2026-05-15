@@ -18,6 +18,7 @@
 		"dev:server": "PIV_SERVER_PORT=3001 bun run --filter devos-server start",
 		"dev:web": "bun run --filter web dev",
 		"dev": "bun run ./scripts/dev.ts",
+		"db:view": "bun run ./scripts/view-server-db.ts",
 		"start": "bun run ./packages/cli/src/index.ts",
 		"smoke": "bun test packages/cli/tests/smoke-flow.test.ts",
 		"publish:version": "bun run --filter devos publish:version",
