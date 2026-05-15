@@ -1,12 +1,12 @@
 import { normalizeError } from "../../logger";
 import type {
-	LinearTaskPollingDispatchRequest,
+	LinearTaskPollingCommandRequest,
 	LinearTaskPollingScheduler,
 	LinearTaskPollingSchedulerDeps,
 	LinearTaskPollingSchedulerOptions,
 } from "./polling.types";
 
-const SINGLE_CYCLE_DISPATCH_REQUEST: LinearTaskPollingDispatchRequest = {
+const SINGLE_CYCLE_COMMAND_REQUEST: LinearTaskPollingCommandRequest = {
 	action: "run",
 	allProjects: true,
 	poll: true,
@@ -38,7 +38,7 @@ export function startLinearTaskPollingScheduler(
 		inFlight = true;
 		try {
 			const result = await options.cliExecutor.execute(
-				SINGLE_CYCLE_DISPATCH_REQUEST,
+				SINGLE_CYCLE_COMMAND_REQUEST,
 			);
 			if (result.status !== "succeeded") {
 				options.logger.error(
@@ -47,7 +47,7 @@ export function startLinearTaskPollingScheduler(
 						status: result.status,
 						error: result.error,
 					},
-					"Server Linear polling dispatch returned non-success status",
+					"Server Linear polling command returned non-success status",
 				);
 			}
 		} catch (error) {
@@ -56,7 +56,7 @@ export function startLinearTaskPollingScheduler(
 					intervalMs,
 					err: normalizeError(error),
 				},
-				"Server Linear polling dispatch failed",
+				"Server Linear polling command failed",
 			);
 		} finally {
 			inFlight = false;

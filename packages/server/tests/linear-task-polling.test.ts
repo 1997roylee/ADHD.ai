@@ -6,7 +6,7 @@ import type { LinearTaskPollingIntervalHandle } from "../src/features/polling";
 import type { ServerLogger } from "../src/logger.types";
 
 describe("startLinearTaskPollingScheduler", () => {
-	it("uses configured polling interval and dispatches a single-cycle run", async () => {
+	it("uses configured polling interval and runs a single-cycle command", async () => {
 		const setIntervalCalls: number[] = [];
 		let tick: (() => void) | undefined;
 		const clearCalls: LinearTaskPollingIntervalHandle[] = [];
@@ -58,7 +58,7 @@ describe("startLinearTaskPollingScheduler", () => {
 		]);
 	});
 
-	it("skips overlapping ticks while dispatch is in flight", async () => {
+	it("skips overlapping ticks while command execution is in flight", async () => {
 		let tick: (() => void) | undefined;
 		const requests: unknown[] = [];
 		let release: (() => void) | undefined;
@@ -103,7 +103,7 @@ describe("startLinearTaskPollingScheduler", () => {
 		expect(requests).toHaveLength(2);
 	});
 
-	it("continues polling after dispatch failures", async () => {
+	it("continues polling after command execution failures", async () => {
 		let tick: (() => void) | undefined;
 		let calls = 0;
 

@@ -1,25 +1,25 @@
+import type { HealthRequestOptions } from "./client.types";
 import type {
-	CliDispatchStreamEvent,
-	CliDispatchStreamHandler,
-	CliDispatchStreamRequest,
-	HealthRequestOptions,
-} from "./client.types";
+	CliCommandStreamEvent,
+	CliCommandStreamHandler,
+	CliCommandStreamRequest,
+} from "./command-stream-client.types";
 
-export interface DispatchStreamApiMethods {
-	streamCliDispatch(
-		request: CliDispatchStreamRequest,
-		onEvent: CliDispatchStreamHandler,
+export interface CommandStreamApiMethods {
+	streamCliCommand(
+		request: CliCommandStreamRequest,
+		onEvent: CliCommandStreamHandler,
 		options?: HealthRequestOptions,
 	): Promise<void>;
 }
 
-export function createDispatchStreamApiMethods(
+export function createCommandStreamApiMethods(
 	wsUrl: string,
 	WebSocketImpl: typeof WebSocket = WebSocket,
-): DispatchStreamApiMethods {
+): CommandStreamApiMethods {
 	return {
-		streamCliDispatch(request, onEvent, options) {
-			return streamDispatchOverWebSocket(
+		streamCliCommand(request, onEvent, options) {
+			return streamCommandOverWebSocket(
 				resolveBrowserWsUrl(wsUrl),
 				WebSocketImpl,
 				request,
@@ -30,11 +30,11 @@ export function createDispatchStreamApiMethods(
 	};
 }
 
-function streamDispatchOverWebSocket(
+function streamCommandOverWebSocket(
 	url: string,
 	WebSocketImpl: typeof WebSocket,
-	request: CliDispatchStreamRequest,
-	onEvent: CliDispatchStreamHandler,
+	request: CliCommandStreamRequest,
+	onEvent: CliCommandStreamHandler,
 	options?: HealthRequestOptions,
 ): Promise<void> {
 	const requestId = crypto.randomUUID();
@@ -62,8 +62,8 @@ function streamDispatchOverWebSocket(
 			if (!frame || frame.requestId !== requestId) {
 				return;
 			}
-			if (isDispatchStreamFrame(frame)) {
-				onEvent(toDispatchStreamEvent(frame));
+			if (isCommandStreamFrame(frame)) {
+				onEvent(toCommandStreamEvent(frame));
 			}
 			if (frame.type === "complete") {
 				socket.close();
@@ -79,18 +79,18 @@ function streamDispatchOverWebSocket(
 	});
 }
 
-function isDispatchStreamFrame(
+function isCommandStreamFrame(
 	frame:
-		| (CliDispatchStreamEvent & { requestId: string })
+		| (CliCommandStreamEvent & { requestId: string })
 		| { type: "ready" | "pong"; requestId?: string },
-): frame is CliDispatchStreamEvent & { requestId: string } {
+): frame is CliCommandStreamEvent & { requestId: string } {
 	return frame.type !== "ready" && frame.type !== "pong";
 }
 
 function parseWebSocketFrame(
 	input: string,
 ):
-	| (CliDispatchStreamEvent & { requestId: string })
+	| (CliCommandStreamEvent & { requestId: string })
 	| { type: "ready" | "pong"; requestId?: string }
 	| undefined {
 	try {
@@ -100,9 +100,9 @@ function parseWebSocketFrame(
 	}
 }
 
-function toDispatchStreamEvent(
-	frame: CliDispatchStreamEvent & { requestId: string },
-): CliDispatchStreamEvent {
+function toCommandStreamEvent(
+	frame: CliCommandStreamEvent & { requestId: string },
+): CliCommandStreamEvent {
 	const { requestId: _requestId, ...event } = frame;
 	return event;
 }

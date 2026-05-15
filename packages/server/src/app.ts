@@ -33,7 +33,6 @@ export function createHandleRequest(deps: AppDeps): RouteHandler {
 			request,
 			deps.cliExecutor,
 			pathname,
-			deps.logger,
 		);
 		if (cliResponse) {
 			return cliResponse;

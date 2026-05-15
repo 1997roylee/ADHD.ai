@@ -58,7 +58,7 @@ describe("web api client task create", () => {
 		]);
 	});
 
-	it("streams CLI dispatch events with an opt-in payload", async () => {
+	it("streams CLI command events with an opt-in payload", async () => {
 		const calls: Array<{ url: string; body: unknown }> = [];
 		const WebSocketImpl = createMockWebSocket(calls);
 		const client = createApiClient({
@@ -67,7 +67,7 @@ describe("web api client task create", () => {
 		});
 		const events: unknown[] = [];
 
-		await client.streamCliDispatch({ action: "projects" }, (event) =>
+		await client.streamCliCommand({ action: "projects" }, (event) =>
 			events.push(event),
 		);
 

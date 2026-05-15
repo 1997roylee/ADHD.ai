@@ -4,7 +4,7 @@ import type {
 	ApiClientOptions,
 	HealthRequestOptions,
 } from "./client.types";
-import { createDispatchStreamApiMethods } from "./dispatch-stream-client";
+import { createCommandStreamApiMethods } from "./command-stream-client";
 import { encodePathSegment } from "./response-utils";
 import { requestJson } from "./response-utils";
 import {
@@ -29,7 +29,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 	) =>
 		requestJson(baseUrl, path, method, fetchFn, headers, requestOptions, body);
 	const boardApiMethods = createBoardApiMethods(requestWithBase);
-	const dispatchStreamApiMethods = createDispatchStreamApiMethods(
+	const commandStreamApiMethods = createCommandStreamApiMethods(
 		wsUrl,
 		options.WebSocketImpl,
 	);
@@ -37,7 +37,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
 	return {
 		...boardApiMethods,
-		...dispatchStreamApiMethods,
+		...commandStreamApiMethods,
 		async getHealth(requestOptions) {
 			const payload = await requestWithBase("/health", "GET", requestOptions);
 			return parseHealthResponse(payload);

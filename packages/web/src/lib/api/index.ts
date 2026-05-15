@@ -5,9 +5,6 @@ export type {
 	AgentUpdateRequest,
 	ApiClient,
 	ApiClientOptions,
-	CliDispatchStreamEvent,
-	CliDispatchStreamHandler,
-	CliDispatchStreamRequest,
 	CommandHistoryRecord,
 	CreatedTaskRef,
 	HealthRequestOptions,
@@ -26,6 +23,11 @@ export type {
 	WorkspaceProjectRecord,
 	WorkspaceProjectsResponse,
 } from "./client.types";
+export type {
+	CliCommandStreamEvent,
+	CliCommandStreamHandler,
+	CliCommandStreamRequest,
+} from "./command-stream-client.types";
 export type {
 	BoardTaskMutationInput,
 	BoardTaskUpdateMutationInput,

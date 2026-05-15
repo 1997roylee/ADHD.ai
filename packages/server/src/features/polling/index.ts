@@ -1,7 +1,7 @@
 export { startLinearTaskPollingScheduler } from "./linear-task-polling";
 export type {
-	LinearTaskPollingDispatchRequest,
-	LinearTaskPollingDispatchResult,
+	LinearTaskPollingCommandRequest,
+	LinearTaskPollingCommandResult,
 	LinearTaskPollingIntervalHandle,
 	LinearTaskPollingScheduler,
 	LinearTaskPollingSchedulerDeps,

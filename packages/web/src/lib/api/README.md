@@ -10,7 +10,7 @@ Fallback implemented:
 - `client.types.ts` defines typed request/response contracts.
 - `client.ts` provides a minimal typed `fetch` client for the current server API surface (`GET /health`).
 - `web-client.ts` creates a browser client that targets `/api/server/*` so Next.js can proxy to the server package.
-- `dispatch-stream-client.ts` streams CLI dispatch frames over `/api/cli/stream` WebSocket endpoints.
+- `command-stream-client.ts` streams CLI command frames over `/api/cli/stream` WebSocket endpoints.
 - `client.typecheck.ts` adds compile-time usage coverage so `bun run --filter web typecheck` verifies the client contract.
 
 Runtime wiring:

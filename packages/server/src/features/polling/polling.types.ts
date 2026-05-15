@@ -22,7 +22,7 @@ export interface LinearTaskPollingSchedulerDeps {
 
 export type LinearTaskPollingIntervalHandle = ReturnType<typeof setInterval>;
 
-export type LinearTaskPollingDispatchRequest = Extract<
+export type LinearTaskPollingCommandRequest = Extract<
 	CliCommandRequest,
 	{ action: "run" }
 > & {
@@ -35,4 +35,4 @@ export interface LinearTaskPollingScheduler {
 	stop: () => void;
 }
 
-export type LinearTaskPollingDispatchResult = CliCommandExecutionResult;
+export type LinearTaskPollingCommandResult = CliCommandExecutionResult;

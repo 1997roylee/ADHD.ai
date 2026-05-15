@@ -2,8 +2,10 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import type {
+	CliStreamDaemonSocketConstructor,
 	CliStreamProxy,
 	CliStreamProxyOptions,
+	CliStreamSocket,
 } from "./cli-stream-proxy.types";
 
 export function attachCliStreamProxy(
@@ -38,8 +40,12 @@ export function attachCliStreamProxy(
 	};
 }
 
-function proxyClientToDaemon(client: WebSocket, daemonUrl: string): void {
-	const daemon = new WebSocket(daemonUrl);
+export function proxyClientToDaemon(
+	client: CliStreamSocket,
+	daemonUrl: string,
+	DaemonWebSocket: CliStreamDaemonSocketConstructor = WebSocket,
+): void {
+	const daemon = new DaemonWebSocket(daemonUrl);
 	const queuedMessages: WebSocket.RawData[] = [];
 
 	daemon.on("open", () => {
@@ -60,7 +66,7 @@ function proxyClientToDaemon(client: WebSocket, daemonUrl: string): void {
 			client.close();
 		}
 	});
-	client.on("message", (message) => {
+	client.on("message", (message: WebSocket.RawData) => {
 		if (daemon.readyState === WebSocket.OPEN) {
 			daemon.send(message);
 			return;

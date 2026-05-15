@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { createCliDaemonClient } from "../src/daemon/daemon-client";
 
 describe("createCliDaemonClient", () => {
-	it("dispatches command frames and emits daemon stream events", async () => {
+	it("sends command frames and emits daemon stream events", async () => {
 		const calls: unknown[] = [];
 		const WebSocketImpl = createMockWebSocket(calls);
 		const client = createCliDaemonClient({
