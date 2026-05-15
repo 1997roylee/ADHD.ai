@@ -111,8 +111,21 @@ async function sendWebResponse(
 		response.end();
 		return;
 	}
-	const body = await webResponse.arrayBuffer();
-	response.send(Buffer.from(body));
+	const reader = webResponse.body.getReader();
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			if (value && !response.write(Buffer.from(value))) {
+				await new Promise<void>((resolve) => response.once("drain", resolve));
+			}
+		}
+		response.end();
+	} finally {
+		reader.releaseLock();
+	}
 }
 
 const handleExpressError: ErrorRequestHandler = (

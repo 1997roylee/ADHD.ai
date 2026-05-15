@@ -2,6 +2,7 @@ import type {
 	CliCommandExecutionHistoryEntry,
 	CliCommandExecutionResult,
 	CliCommandRequest,
+	CliCommandStreamEmit,
 	NotificationServerRequest,
 } from "devos/features/server";
 import type { BoardRepository } from "./board";
@@ -12,6 +13,10 @@ import type { ReadRepositories } from "./repositories.types";
 
 export interface CliExecutor {
 	execute(request: CliCommandRequest): Promise<CliCommandExecutionResult>;
+	executeStream(
+		request: CliCommandRequest,
+		emit: CliCommandStreamEmit,
+	): Promise<CliCommandExecutionResult>;
 	getHistory(): CliCommandExecutionHistoryEntry[];
 }
 
