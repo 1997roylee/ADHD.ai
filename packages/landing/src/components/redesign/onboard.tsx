@@ -1,0 +1,66 @@
+"use client";
+
+import { Check, Copy, Terminal } from "lucide-react";
+import { type ReactElement, useState } from "react";
+
+const command = "npx devos onboard";
+
+export function Onboard(): ReactElement {
+	const [copied, setCopied] = useState(false);
+
+	function copyCommand(): void {
+		void navigator.clipboard?.writeText(command);
+		setCopied(true);
+		window.setTimeout(() => setCopied(false), 1500);
+	}
+
+	return (
+		<section
+			className="border-foreground border-b-2 py-16 sm:py-20 md:py-28"
+			id="start"
+		>
+			<div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+				<p className="mb-3 font-mono text-foreground/60 text-xs uppercase">
+					GET STARTED
+				</p>
+				<h2 className="font-pixel text-[clamp(2rem,4.5vw,3.5rem)] uppercase leading-none">
+					Run the command.
+					<br />
+					<span className="text-[var(--neon-pink)]">
+						Onboard in 30 seconds.
+					</span>
+				</h2>
+				<p className="mx-auto mt-5 max-w-xl text-foreground/70">
+					One command bootstraps your workspace, links your repo, and spins up
+					your first agent crew. No installs, no config files.
+				</p>
+				<button
+					className="group mx-auto mt-10 flex w-full max-w-xl items-center gap-3 border-2 border-foreground bg-foreground px-3 py-4 text-left text-background shadow-retro-pink transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[8px_8px_0_0_var(--neon-pink)] sm:px-4"
+					onClick={copyCommand}
+					type="button"
+				>
+					<Terminal className="h-5 w-5 shrink-0 text-[var(--neon-cyan)]" />
+					<span className="flex-1 truncate font-mono text-sm sm:text-lg">
+						<span className="text-[var(--neon-pink)]">$</span> {command}
+						<span className="ml-1 inline-block h-4 w-2 animate-pulse bg-[var(--neon-cyan)] align-middle" />
+					</span>
+					<span className="flex shrink-0 items-center gap-1 border border-background/30 px-2 py-1 text-[10px] uppercase">
+						{copied ? (
+							<Check className="h-3 w-3" />
+						) : (
+							<Copy className="h-3 w-3" />
+						)}
+						<span className="hidden sm:inline">
+							{copied ? "Copied" : "Copy"}
+						</span>
+					</span>
+				</button>
+				<div className="mt-6 flex flex-wrap items-center justify-center gap-6 font-mono text-foreground/60 text-xs">
+					<span>no install</span>
+					<span>works with any repo</span>
+					<span>runs on your machine</span>
+				</div>
+			</div>
+		</section>
+	);
+}

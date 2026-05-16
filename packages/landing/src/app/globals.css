@@ -1,11 +1,24 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;700&family=VT323&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
 	color-scheme: light;
-	background: #f2eadc;
-	color: #10110d;
+	--background: #f4ecd8;
+	--foreground: #1a0b2e;
+	--card: #faf3e0;
+	--muted: #ece2c8;
+	--muted-foreground: #6b4e9c;
+	--border: rgba(26, 11, 46, 0.18);
+	--neon-pink: #ff2e88;
+	--neon-cyan: #00e1ff;
+	--neon-yellow: #ffea00;
+	--neon-lime: #8cff00;
+	--neon-purple: #b026ff;
+	background: var(--background);
+	color: var(--foreground);
 }
 
 * {
@@ -13,17 +26,23 @@
 }
 
 html {
+	overflow-x: clip;
 	scroll-behavior: smooth;
 }
 
 body {
 	margin: 0;
 	min-height: 100vh;
-	background: linear-gradient(rgba(16, 17, 13, 0.055) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(16, 17, 13, 0.055) 1px, transparent 1px),
-		#f2eadc;
-	background-size: 36px 36px;
-	font-family: "Geist", "Geist Fallback", sans-serif;
+	overflow-x: clip;
+	background-color: var(--background);
+	background-image: radial-gradient(
+			circle at 10% 0%,
+			rgba(255, 46, 136, 0.08),
+			transparent 40%
+		),
+		radial-gradient(circle at 90% 10%, rgba(0, 225, 255, 0.08), transparent 40%);
+	font-family: "Geist", "Geist Fallback", -apple-system, BlinkMacSystemFont,
+		"Segoe UI", Helvetica, Arial, sans-serif;
 }
 
 a {
@@ -32,139 +51,80 @@ a {
 }
 
 ::selection {
-	background: #b7ff4a;
-	color: #10110d;
+	background: var(--neon-cyan);
+	color: var(--foreground);
 }
 
-.grain {
-	position: relative;
+code,
+pre,
+.font-mono {
+	font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, SFMono-Regular,
+		Menlo, monospace;
 }
 
-.grain::before {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	content: "";
-	opacity: 0.26;
-	background-image: radial-gradient(
-		rgba(16, 17, 13, 0.2) 0.6px,
-		transparent 0.7px
-	);
-	background-size: 6px 6px;
-	mix-blend-mode: multiply;
+.font-pixel {
+	font-family: "VT323", "Geist Mono", monospace;
+	letter-spacing: 0;
 }
 
-.reveal {
-	animation: rise 700ms ease both;
+.shadow-retro {
+	box-shadow: 6px 6px 0 0 var(--foreground);
 }
 
-.plan-card {
-	appearance: none;
-	border-radius: 0;
-	color: inherit;
-	font: inherit;
-	transform: translateY(0);
-	transition: background-color 180ms ease, box-shadow 180ms ease, transform
-		180ms ease;
+.shadow-retro-pink {
+	box-shadow: 6px 6px 0 0 var(--neon-pink);
 }
 
-.plan-card:hover,
-.plan-card:focus-visible {
-	transform: translateY(-2px);
+.shadow-retro-cyan {
+	box-shadow: 6px 6px 0 0 var(--neon-cyan);
 }
 
-.plan-card:focus-visible {
-	outline: 3px solid #b87333;
-	outline-offset: 3px;
+.shadow-retro-sm {
+	box-shadow: 3px 3px 0 0 var(--foreground);
 }
 
-.terminal-panel::before {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	content: "";
-	background: linear-gradient(
+.scanlines {
+	background-image: repeating-linear-gradient(
+		to bottom,
 		transparent 0,
-		rgba(183, 255, 74, 0.07) 50%,
-		transparent 100%
+		transparent 2px,
+		rgba(26, 11, 46, 0.04) 2px,
+		rgba(26, 11, 46, 0.04) 3px
 	);
-	background-size: 100% 9px;
-	opacity: 0.42;
 }
 
-.terminal-glow {
-	position: relative;
-	box-shadow: 0 0 0 1px rgba(183, 255, 74, 0.14) inset, 0 0 26px
-		rgba(183, 255, 74, 0.12);
+.text-glow-pink {
+	text-shadow: 0 0 12px rgba(255, 46, 136, 0.5);
 }
 
-.terminal-cursor {
-	display: inline-block;
-	width: 0.7ch;
-	height: 1em;
-	margin-left: 0.25rem;
-	background: #b7ff4a;
-	vertical-align: -0.12em;
-	animation: cursor-blink 900ms steps(2, start) infinite;
+.text-glow-cyan {
+	text-shadow: 0 0 12px rgba(0, 225, 255, 0.5);
 }
 
-.terminal-float {
-	animation: terminal-float 5s ease-in-out infinite;
+.pixel-grid {
+	background-image: linear-gradient(
+			to right,
+			rgba(26, 11, 46, 0.08) 1px,
+			transparent 1px
+		), linear-gradient(to bottom, rgba(26, 11, 46, 0.08) 1px, transparent 1px);
+	background-size: 40px 40px;
 }
 
-.trace-line {
-	animation: trace-in 280ms ease both;
+.ticker {
+	animation: ticker 30s linear infinite;
 }
 
-.flow-node {
-	transition: background-color 180ms ease, transform 180ms ease, box-shadow
-		180ms ease;
+.float-soft {
+	animation: float-soft 5s ease-in-out infinite;
 }
 
-.flow-node:hover {
-	background: #b7ff4a;
-	box-shadow: 4px 4px 0 #10110d;
-	transform: translateY(-2px);
-}
-
-.flow-node::after {
-	position: absolute;
-	right: 1.25rem;
-	bottom: -2px;
-	left: 1.25rem;
-	height: 4px;
-	content: "";
-	background: #b7ff4a;
-}
-
-.flow-node:last-child {
-	background: #10110d;
-	color: #fff8e9;
-}
-
-.flow-node:last-child::after {
-	background: #b87333;
-}
-
-@keyframes rise {
-	from {
-		opacity: 0;
-		transform: translateY(18px);
-	}
-
+@keyframes ticker {
 	to {
-		opacity: 1;
-		transform: translateY(0);
+		transform: translateX(-33%);
 	}
 }
 
-@keyframes cursor-blink {
-	50% {
-		opacity: 0;
-	}
-}
-
-@keyframes terminal-float {
+@keyframes float-soft {
 	0%,
 	100% {
 		transform: translateY(0);
@@ -175,37 +135,13 @@ a {
 	}
 }
 
-@keyframes trace-in {
-	from {
-		opacity: 0;
-		transform: translateX(-8px);
-	}
-
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
 	html {
 		scroll-behavior: auto;
 	}
 
-	.reveal,
-	.terminal-cursor,
-	.terminal-float,
-	.trace-line {
+	.ticker,
+	.float-soft {
 		animation: none;
-	}
-
-	.plan-card {
-		transition: none;
-	}
-
-	.plan-card:hover,
-	.plan-card:focus-visible,
-	.flow-node:hover {
-		transform: none;
 	}
 }
