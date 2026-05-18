@@ -18,6 +18,7 @@ Runtime wiring:
 - `DEVOS_SERVER_BASE_URL` defaults to `http://127.0.0.1:3001` when unset.
 - Browser WebSocket streams go through the server-owned `/api/cli/stream` endpoint: `web -> server /api/cli/stream -> CLI daemon`.
 - Browser realtime updates use `/api/events`; continuous workflow polling is owned by `devos daemon`, not by a browser WebSocket stream.
+- Daemon-originated task mutation notices use `/daemon/events`: `CLI daemon -> server`, carrying only `{ taskId }` so the server rereads the DB before publishing `/api/events`.
 - `NEXT_PUBLIC_DEVOS_SERVER_WS_URL` can override the browser stream target, but it must point at the server stream endpoint, not the CLI daemon.
 - `DEVOS_CLI_DAEMON_WS_URL` is server-only wiring for the server-to-daemon hop.
 

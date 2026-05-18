@@ -46,6 +46,7 @@ describe("buildDaemonCommands", () => {
 				],
 				env: {
 					DEVOS_SERVER_BASE_URL: "http://127.0.0.1:3001",
+					DEVOS_SERVER_EVENTS_WS_URL: "ws://127.0.0.1:3001/daemon/events",
 					NODE_ENV: "production",
 				},
 			},
@@ -84,9 +85,20 @@ describe("buildDaemonCommands", () => {
 			],
 			env: {
 				DEVOS_SERVER_BASE_URL: "https://api.example.test",
+				DEVOS_SERVER_EVENTS_WS_URL: "wss://api.example.test/daemon/events",
 				NODE_ENV: "production",
 			},
 		});
+	});
+
+	it("preserves an explicit daemon events websocket url", () => {
+		const commands = buildDaemonCommands({
+			DEVOS_SERVER_EVENTS_WS_URL: "ws://events.example.test/socket",
+		});
+
+		expect(commands[2]?.env.DEVOS_SERVER_EVENTS_WS_URL).toBe(
+			"ws://events.example.test/socket",
+		);
 	});
 
 	it("does not expose the CLI daemon websocket as the web stream target", () => {
@@ -144,6 +156,10 @@ describe("runProductionDaemon", () => {
 				cwd: "/repo",
 			},
 		]);
+		expect(harness.commandDaemonEnv).toMatchObject({
+			DEVOS_SERVER_BASE_URL: "http://127.0.0.1:3001",
+			DEVOS_SERVER_EVENTS_WS_URL: "ws://127.0.0.1:3001/daemon/events",
+		});
 		harness.children[0]?.emit("close", 0, null);
 		await expect(done).resolves.toBe(0);
 		expect(harness.commandDaemonStopped).toBe(true);
@@ -242,6 +258,7 @@ function createDaemonHarness(): {
 		Parameters<typeof runProductionDaemon>[0]
 	>["startCommandDaemon"];
 	commandDaemonStopped: boolean;
+	commandDaemonEnv: NodeJS.ProcessEnv | undefined;
 } {
 	const calls: Array<{ command: string; args: string[]; cwd: string }> = [];
 	const children: FakeDaemonChild[] = [];
@@ -255,15 +272,19 @@ function createDaemonHarness(): {
 	const harness = {
 		calls,
 		children,
+		commandDaemonEnv: undefined as NodeJS.ProcessEnv | undefined,
 		commandDaemonStopped: false,
 		signalTarget: new FakeSignalTarget(),
 		spawnChild,
-		startCommandDaemon: () => ({
-			port: 3002,
-			stop: async () => {
-				harness.commandDaemonStopped = true;
-			},
-		}),
+		startCommandDaemon: (options: { env?: NodeJS.ProcessEnv }) => {
+			harness.commandDaemonEnv = options.env;
+			return {
+				port: 3002,
+				stop: async () => {
+					harness.commandDaemonStopped = true;
+				},
+			};
+		},
 	};
 	return harness;
 }

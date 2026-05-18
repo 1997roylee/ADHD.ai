@@ -65,7 +65,9 @@ The previous server-owned poller design is superseded. Continuous workflow polli
 2. `--poll-forever` implies polling, ignores configured max cycles, disables idle exit, and cannot be combined with `--max-poll-cycles`.
 3. Workflow duplicate prevention remains in the existing per-issue run lease and stale-run recovery model.
 4. CLI polling records status/events in the polling observability tables, which the server exposes through `/api/polling/status`.
-5. Server cron remains separate as `devos-server cron`; it is not started by the API server process.
+5. CLI daemon task mutations notify the server over `/daemon/events` with only a task ID; the server rereads the database and publishes trusted `/api/events` updates.
+6. `/api/cli/stream` remains request-scoped command streaming and is not used for background polling notifications.
+7. Server cron remains separate as `devos-server cron`; it is not started by the API server process.
 
 ## Verification Signal Contract
 

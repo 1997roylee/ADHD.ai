@@ -23,6 +23,10 @@ import {
 	resolveServerWorkspacePath,
 } from "./startup-paths";
 import { attachCliStreamProxy } from "./ws/cli-stream-proxy";
+import {
+	DAEMON_EVENTS_PATH,
+	attachDaemonEventsSocket,
+} from "./ws/daemon-events";
 import { attachRealtimeEventsSocket } from "./ws/realtime-events";
 
 const DEFAULT_SERVER_PORT = 3001;
@@ -79,9 +83,16 @@ export async function startServer(
 		path: "/api/events",
 		eventBus: realtimeEvents,
 	});
+	const daemonEventsSocket = attachDaemonEventsSocket({
+		server,
+		path: DAEMON_EVENTS_PATH,
+		db: serverDatabase.db,
+		realtimeEvents,
+	});
 	server.once("close", () => {
 		void cliStreamProxy.close();
 		void realtimeEventsSocket.close();
+		void daemonEventsSocket.close();
 	});
 	const address = server.address();
 	const listeningPort = typeof address === "object" ? address?.port : port;

@@ -192,16 +192,16 @@ describe("BoardTaskWorkflowClient", () => {
 
 		expect(calls).toEqual([
 			{
-				url: "http://server.test/api/internal/daemon/task-changed",
-				body: { taskId: "task-1" },
+				url: "ws://server.test/daemon/events",
+				body: { type: "task.changed", taskId: "task-1" },
 			},
 			{
-				url: "http://server.test/api/internal/daemon/task-changed",
-				body: { taskId: "task-1" },
+				url: "ws://server.test/daemon/events",
+				body: { type: "task.changed", taskId: "task-1" },
 			},
 			{
-				url: "http://server.test/api/internal/daemon/task-changed",
-				body: { taskId: "task-1" },
+				url: "ws://server.test/daemon/events",
+				body: { type: "task.changed", taskId: "task-1" },
 			},
 		]);
 	});
@@ -209,7 +209,7 @@ describe("BoardTaskWorkflowClient", () => {
 	it("keeps workflow mutations successful when server notification fails", async () => {
 		const { database, config, databasePath } = await setupDatabase();
 		await seedTask(database, { id: "task-1", taskKey: "TASK-000001" });
-		const restore = installTaskNotificationMock([], 500);
+		const restore = installTaskNotificationMock([], "error");
 		const client = createBoardTaskWorkflowClient(config);
 
 		try {
@@ -323,24 +323,53 @@ async function withFreshDatabase<T>(
 
 function installTaskNotificationMock(
 	calls: Array<{ url: string; body: unknown }>,
-	status = 204,
+	mode: "ack" | "error" = "ack",
 ): () => void {
 	const previousBaseUrl = process.env.DEVOS_SERVER_BASE_URL;
-	const previousFetch = globalThis.fetch;
+	const previousEventsUrl = process.env.DEVOS_SERVER_EVENTS_WS_URL;
+	const previousWebSocket = globalThis.WebSocket;
 	process.env.DEVOS_SERVER_BASE_URL = "http://server.test";
-	globalThis.fetch = (async (input, init) => {
-		calls.push({
-			url: String(input),
-			body: JSON.parse(String(init?.body)),
-		});
-		return new Response(null, { status });
-	}) as typeof fetch;
+	Reflect.deleteProperty(process.env, "DEVOS_SERVER_EVENTS_WS_URL");
+	class FakeWebSocket extends EventTarget {
+		constructor(readonly url: string) {
+			super();
+			queueMicrotask(() => this.dispatchEvent(new Event("open")));
+		}
+
+		send(message: string): void {
+			const body = JSON.parse(message) as { taskId?: string };
+			calls.push({ url: this.url, body });
+			if (mode === "error") {
+				queueMicrotask(() => this.dispatchEvent(new Event("error")));
+				return;
+			}
+			queueMicrotask(() => {
+				this.dispatchEvent(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							type: "task.changed.ack",
+							taskId: body.taskId,
+							status: "published",
+						}),
+					}),
+				);
+			});
+		}
+
+		close(): void {}
+	}
+	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
 	return () => {
 		if (previousBaseUrl === undefined) {
 			Reflect.deleteProperty(process.env, "DEVOS_SERVER_BASE_URL");
 		} else {
 			process.env.DEVOS_SERVER_BASE_URL = previousBaseUrl;
 		}
-		globalThis.fetch = previousFetch;
+		if (previousEventsUrl === undefined) {
+			Reflect.deleteProperty(process.env, "DEVOS_SERVER_EVENTS_WS_URL");
+		} else {
+			process.env.DEVOS_SERVER_EVENTS_WS_URL = previousEventsUrl;
+		}
+		globalThis.WebSocket = previousWebSocket;
 	};
 }

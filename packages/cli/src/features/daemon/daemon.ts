@@ -26,6 +26,8 @@ export function buildDaemonCommands(
 	const cliDaemonWsUrl =
 		env.DEVOS_CLI_DAEMON_WS_URL ?? formatCliDaemonWsUrl(cliDaemonPort);
 	const serverBaseUrl = resolveServerBaseUrl(env);
+	const serverEventsWsUrl =
+		env.DEVOS_SERVER_EVENTS_WS_URL ?? resolveServerEventsWsUrl(serverBaseUrl);
 	const serverWsUrl =
 		env.NEXT_PUBLIC_DEVOS_SERVER_WS_URL ??
 		`ws://127.0.0.1:${serverPort}/api/cli/stream`;
@@ -66,6 +68,7 @@ export function buildDaemonCommands(
 			env: {
 				...baseEnv,
 				DEVOS_SERVER_BASE_URL: serverBaseUrl,
+				DEVOS_SERVER_EVENTS_WS_URL: serverEventsWsUrl,
 			},
 		},
 	];
@@ -78,11 +81,15 @@ export async function runProductionDaemon(
 	const spawnChild = options.spawnChild ?? spawnDaemonChild;
 	const signalTarget = options.signalTarget ?? process;
 	const env = options.env ?? process.env;
+	const serverBaseUrl = resolveServerBaseUrl(env);
 	const commandDaemon = (options.startCommandDaemon ?? startCliCommandDaemon)({
 		cwd,
 		env: {
 			...env,
-			DEVOS_SERVER_BASE_URL: resolveServerBaseUrl(env),
+			DEVOS_SERVER_BASE_URL: serverBaseUrl,
+			DEVOS_SERVER_EVENTS_WS_URL:
+				env.DEVOS_SERVER_EVENTS_WS_URL ??
+				resolveServerEventsWsUrl(serverBaseUrl),
 		},
 	});
 	const children = buildDaemonCommands(options.env).map((service) =>
@@ -215,4 +222,15 @@ const spawnDaemonChild: DaemonSpawn = (command, args, options) =>
 function resolveServerBaseUrl(env: NodeJS.ProcessEnv): string {
 	const serverPort = env.PIV_SERVER_PORT ?? DEFAULT_SERVER_PORT;
 	return env.DEVOS_SERVER_BASE_URL ?? `http://127.0.0.1:${serverPort}`;
+}
+
+function resolveServerEventsWsUrl(serverBaseUrl: string): string {
+	const url = new URL("/daemon/events", serverBaseUrl);
+	if (url.protocol === "http:") {
+		url.protocol = "ws:";
+	}
+	if (url.protocol === "https:") {
+		url.protocol = "wss:";
+	}
+	return url.toString();
 }

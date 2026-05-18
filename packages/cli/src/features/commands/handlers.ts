@@ -164,6 +164,7 @@ export function printHelp(): void {
 			"",
 			"Environment:",
 			"  PIV_SERVER_PORT, PORT, DEVOS_SERVER_BASE_URL for devos daemon",
+			"  DEVOS_SERVER_EVENTS_WS_URL for daemon event ingress",
 			"  DEVOS_CLI_DAEMON_PORT for devos daemon --cli-only",
 			"  LINEAR_API_KEY, LINEAR_STATUS_* state IDs, GITHUB_* repo settings",
 		].join("\n")}\n`,
