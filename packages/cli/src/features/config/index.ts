@@ -52,7 +52,14 @@ export function getProjectById(
 	config: LoadedConfig,
 	projectId: string,
 ): ResolvedProjectConfig | undefined {
-	return config.projects.find((project) => project.id === projectId);
+	// Exact UUID match first
+	const exact = config.projects.find((project) => project.id === projectId);
+	if (exact) return exact;
+	// Fallback: match by project name (case-insensitive)
+	const byName = config.projects.find(
+		(project) => project.name.toLowerCase() === projectId.toLowerCase(),
+	);
+	return byName;
 }
 
 function resolvePolling(
