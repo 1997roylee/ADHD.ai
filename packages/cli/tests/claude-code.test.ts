@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { AgentResult } from "adapters";
 import {
 	ClaudeCodeAdapter,
+	buildClaudeCommonArgs,
 	extractSessionId,
 	extractUsage,
 } from "adapters/claude";
@@ -161,10 +162,7 @@ describe("claude code adapter", () => {
 	});
 
 	it("builds default common args with bypassPermissions", () => {
-		const adapter = new ClaudeCodeAdapter(createConfig());
-		const args = (
-			adapter as unknown as { buildCommonArgs: () => string[] }
-		).buildCommonArgs();
+		const args = buildClaudeCommonArgs(createConfig());
 		expect(args).toEqual([
 			"--output-format",
 			"json",
@@ -174,7 +172,7 @@ describe("claude code adapter", () => {
 	});
 
 	it("builds common args with model, maxTurns, allowedTools, and permission mode", () => {
-		const adapter = new ClaudeCodeAdapter(
+		const args = buildClaudeCommonArgs(
 			createConfig({
 				model: "claude-sonnet-4-20250514",
 				maxTurns: 7,
@@ -182,9 +180,6 @@ describe("claude code adapter", () => {
 				permissionMode: "plan",
 			}),
 		);
-		const args = (
-			adapter as unknown as { buildCommonArgs: () => string[] }
-		).buildCommonArgs();
 		expect(args).toEqual([
 			"--output-format",
 			"json",
@@ -202,22 +197,16 @@ describe("claude code adapter", () => {
 	});
 
 	it("skips maxTurns when maxTurns is zero or negative", () => {
-		const zeroTurnsAdapter = new ClaudeCodeAdapter(
+		const zeroArgs = buildClaudeCommonArgs(
 			createConfig({
 				maxTurns: 0,
 			}),
 		);
-		const negativeTurnsAdapter = new ClaudeCodeAdapter(
+		const negativeArgs = buildClaudeCommonArgs(
 			createConfig({
 				maxTurns: -5,
 			}),
 		);
-		const zeroArgs = (
-			zeroTurnsAdapter as unknown as { buildCommonArgs: () => string[] }
-		).buildCommonArgs();
-		const negativeArgs = (
-			negativeTurnsAdapter as unknown as { buildCommonArgs: () => string[] }
-		).buildCommonArgs();
 		expect(zeroArgs).not.toContain("--max-turns");
 		expect(negativeArgs).not.toContain("--max-turns");
 	});

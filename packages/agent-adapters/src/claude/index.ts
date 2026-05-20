@@ -1,8 +1,5 @@
-export {
-	ClaudeCodeAdapter,
-	extractSessionId,
-	extractUsage,
-} from "./adapter";
+export { ClaudeCodeAdapter } from "./adapter";
+export { buildClaudeCommonArgs } from "./args";
 export {
 	CLAUDE_AVAILABLE_MODELS,
 	CLAUDE_BACKEND,
@@ -11,3 +8,5 @@ export {
 	CLAUDE_LABEL,
 } from "./constants";
 export { claudeConfigurationDoc } from "./configuration-doc";
+export { mapClaudeError } from "./errors";
+export { extractFinalMessage, extractSessionId, extractUsage } from "./output";

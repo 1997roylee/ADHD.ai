@@ -11,6 +11,7 @@ import {
 } from "../src";
 import {
 	ClaudeCodeAdapter,
+	buildClaudeCommonArgs,
 	extractSessionId as extractClaudeSessionId,
 	extractUsage as extractClaudeUsage,
 } from "../src/claude";
@@ -196,7 +197,7 @@ describe("codex adapter", () => {
 
 describe("claude code adapter", () => {
 	it("builds common args from generic agent config", () => {
-		const adapter = new ClaudeCodeAdapter({
+		const args = buildClaudeCommonArgs({
 			...config,
 			agent: {
 				model: "claude-sonnet-4-20250514",
@@ -205,9 +206,6 @@ describe("claude code adapter", () => {
 				permissionMode: "plan",
 			},
 		});
-		const args = (
-			adapter as unknown as { buildCommonArgs: () => string[] }
-		).buildCommonArgs();
 
 		expect(args).toEqual([
 			"--output-format",
