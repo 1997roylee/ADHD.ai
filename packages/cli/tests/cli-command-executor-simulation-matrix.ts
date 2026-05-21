@@ -17,6 +17,7 @@ export const CLI_COMMAND_SIMULATION_MATRIX: SimulationCase[] = [
 		},
 		expectedArgs: [
 			"devos",
+			"workflow",
 			"run",
 			"--project",
 			"default",
@@ -43,7 +44,13 @@ export const CLI_COMMAND_SIMULATION_MATRIX: SimulationCase[] = [
 			allProjects: true,
 			pollForever: true,
 		},
-		expectedArgs: ["devos", "run", "--all-projects", "--poll-forever"],
+		expectedArgs: [
+			"devos",
+			"workflow",
+			"run",
+			"--all-projects",
+			"--poll-forever",
+		],
 		commandResult: { code: 0, stdout: "run forever ok", stderr: "" },
 		expectedStatus: "succeeded",
 	},

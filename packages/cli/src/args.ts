@@ -15,6 +15,7 @@ import { registerTaskCommand } from "./features/task-intake/args";
 export type {
 	CliRuntime,
 	DaemonCommand,
+	LauncherCommand,
 	OnboardCommand,
 	SkillsCommand,
 	StatusCommand,
@@ -36,6 +37,7 @@ export function createCliProgram(
 	program.helpCommand("help [command]", "display help for command");
 
 	registerRunCommand(program, runtime);
+	registerWorkflowCommand(program, runtime);
 	registerDaemonCommand(program, runtime);
 	registerOnboardCommand(program, runtime);
 	registerStatusCommand(program, runtime);
@@ -54,6 +56,25 @@ export function createCliProgram(
 }
 
 function registerRunCommand(program: Command, runtime: CliRuntime): void {
+	program
+		.command("run")
+		.description("run the local devos server, UI, and workflow services")
+		.action(async () => {
+			process.exitCode = await runtime.handleLauncherCommand({}, runtime.cwd);
+		});
+}
+
+function registerWorkflowCommand(program: Command, runtime: CliRuntime): void {
+	const workflow = program
+		.command("workflow", { hidden: true })
+		.description("internal workflow orchestration commands");
+	registerWorkflowRunCommand(workflow, runtime);
+}
+
+function registerWorkflowRunCommand(
+	program: Command,
+	runtime: CliRuntime,
+): void {
 	program
 		.command("run")
 		.description("run workflow orchestration")
@@ -78,7 +99,7 @@ function registerRunCommand(program: Command, runtime: CliRuntime): void {
 			}
 			const isolatedWorktrees = options.isolatedWorktrees ? true : undefined;
 			await withConfig(runtime, (config) =>
-				runtime.handleRunCommand(config, {
+				runtime.handleWorkflowRunCommand(config, {
 					issueArg: options.issue,
 					projectId: options.project,
 					allProjects: options.allProjects === true,

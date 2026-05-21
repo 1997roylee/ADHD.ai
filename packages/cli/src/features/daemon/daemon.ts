@@ -59,7 +59,7 @@ export function buildDaemonCommands(
 		{
 			name: "workflow-poller",
 			command: "npx",
-			args: ["devos", "run", "--all-projects", "--poll-forever"],
+			args: ["devos", "workflow", "run", "--all-projects", "--poll-forever"],
 			env: {
 				...baseEnv,
 				DEVOS_SERVER_BASE_URL: serverBaseUrl,

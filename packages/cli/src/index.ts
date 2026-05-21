@@ -2,11 +2,12 @@
 import { CommanderError } from "commander";
 import { type CliRuntime, createCliProgram } from "./args";
 import {
+	handleLauncherCommand,
 	handleOnboardCommand,
 	handleProjectsCommand,
-	handleRunCommand,
 	handleSkillsCommand,
 	handleStatusCommand,
+	handleWorkflowRunCommand,
 } from "./commands/handlers";
 import { handleTaskCommand } from "./features/commands/task-command";
 import { loadConfig } from "./features/config";
@@ -28,9 +29,10 @@ async function main(): Promise<void> {
 		cwd,
 		loadConfig: () => loadConfig(cwd),
 		handleOnboardCommand,
+		handleLauncherCommand,
 		runCliCommandDaemonOnly,
 		runProductionDaemon,
-		handleRunCommand,
+		handleWorkflowRunCommand,
 		handleProjectsCommand,
 		handleStatusCommand,
 		handleSkillsCommand,

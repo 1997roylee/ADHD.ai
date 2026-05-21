@@ -404,7 +404,7 @@ function resolveInvocation(
 function buildRunArgs(
 	request: Extract<SupportedCliCommandRequest, { action: "run" }>,
 ): string[] {
-	const args = ["run"];
+	const args = ["workflow", "run"];
 	appendFlag(args, "--project", request.projectId);
 	appendFlag(args, "--issue", request.issueKey);
 	appendBooleanFlag(args, "--all-projects", request.allProjects);

@@ -7,7 +7,7 @@ describe("createCliProgram help and core commands", () => {
 
 		expect(result.error.exitCode).toBe(0);
 		expect(result.stdout).toContain("Usage: devos [options] [command]");
-		expect(result.stdout).toContain("run [options]");
+		expect(result.stdout).toContain("run                run the local devos");
 		expect(result.stdout).toContain("help [command]");
 		expect(result.stderr).toBe("");
 	});
@@ -23,16 +23,28 @@ describe("createCliProgram help and core commands", () => {
 	});
 
 	it("prints subcommand help", async () => {
-		const result = await expectCommanderError([
+		const runResult = await expectCommanderError([
 			"bun",
 			"devos",
 			"run",
 			"--help",
 		]);
+		const workflowResult = await expectCommanderError([
+			"bun",
+			"devos",
+			"workflow",
+			"run",
+			"--help",
+		]);
 
-		expect(result.error.exitCode).toBe(0);
-		expect(result.stdout).toContain("Usage: devos run [options]");
-		expect(result.stdout).toContain("--poll-forever");
+		expect(runResult.error.exitCode).toBe(0);
+		expect(runResult.stdout).toContain("Usage: devos run [options]");
+		expect(runResult.stdout).not.toContain("--poll-forever");
+		expect(workflowResult.error.exitCode).toBe(0);
+		expect(workflowResult.stdout).toContain(
+			"Usage: devos workflow run [options]",
+		);
+		expect(workflowResult.stdout).toContain("--poll-forever");
 	});
 
 	it("runs status command with loaded config", async () => {

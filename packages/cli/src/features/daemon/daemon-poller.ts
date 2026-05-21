@@ -50,7 +50,7 @@ export function startAttachedWorkflowPoller(
 	const spawnPoller = options.spawnPoller ?? spawnAttachedPoller;
 	const child = spawnPoller(
 		"npx",
-		["devos", "run", "--all-projects", "--poll-forever"],
+		["devos", "workflow", "run", "--all-projects", "--poll-forever"],
 		{
 			cwd: options.cwd,
 			env,

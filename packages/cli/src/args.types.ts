@@ -92,6 +92,8 @@ export type TaskCommand = {
 
 export type OnboardCommand = { check: boolean };
 
+export type LauncherCommand = Record<string, never>;
+
 export type DaemonCommand = {
 	cliOnly?: boolean;
 	pollForever?: boolean;
@@ -107,13 +109,17 @@ export type CliRuntime = {
 	cwd: string;
 	loadConfig(): Promise<LoadedConfig>;
 	handleOnboardCommand(command: OnboardCommand, cwd: string): Promise<void>;
+	handleLauncherCommand(command: LauncherCommand, cwd: string): Promise<number>;
 	runCliCommandDaemonOnly(options: {
 		cwd: string;
 		pollForever?: boolean;
 		allProjects?: boolean;
 	}): Promise<number>;
 	runProductionDaemon(options: { cwd: string }): Promise<number>;
-	handleRunCommand(config: LoadedConfig, options: RunOptions): Promise<void>;
+	handleWorkflowRunCommand(
+		config: LoadedConfig,
+		options: RunOptions,
+	): Promise<void>;
 	handleProjectsCommand(config: LoadedConfig): Promise<void>;
 	handleStatusCommand(
 		config: LoadedConfig,

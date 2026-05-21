@@ -2,14 +2,33 @@ import { describe, expect, it } from "bun:test";
 import { captureWithRuntime, expectCommanderError } from "./args-test-helpers";
 
 describe("createCliProgram run", () => {
+	it("runs the local launcher", async () => {
+		expect((await captureWithRuntime(["bun", "devos", "run"])).calls).toEqual([
+			{
+				name: "launcher",
+				payload: { command: {}, cwd: "/tmp/devos-test" },
+			},
+		]);
+	});
+});
+
+describe("createCliProgram workflow run", () => {
 	it("runs issue and project scopes", async () => {
 		expect(
-			(await captureWithRuntime(["bun", "devos", "run", "--issue", "ABC-1"]))
-				.calls,
+			(
+				await captureWithRuntime([
+					"bun",
+					"devos",
+					"workflow",
+					"run",
+					"--issue",
+					"ABC-1",
+				])
+			).calls,
 		).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					issueArg: "ABC-1",
 					projectId: undefined,
@@ -24,12 +43,20 @@ describe("createCliProgram run", () => {
 			},
 		]);
 		expect(
-			(await captureWithRuntime(["bun", "devos", "run", "--project", "api"]))
-				.calls,
+			(
+				await captureWithRuntime([
+					"bun",
+					"devos",
+					"workflow",
+					"run",
+					"--project",
+					"api",
+				])
+			).calls,
 		).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					projectId: "api",
 					allProjects: false,
@@ -48,6 +75,7 @@ describe("createCliProgram run", () => {
 		const result = await captureWithRuntime([
 			"bun",
 			"devos",
+			"workflow",
 			"run",
 			"--poll",
 			"--poll-interval-ms",
@@ -61,7 +89,7 @@ describe("createCliProgram run", () => {
 		expect(result.calls).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					issueArg: undefined,
 					projectId: undefined,
@@ -83,6 +111,7 @@ describe("createCliProgram run", () => {
 				await captureWithRuntime([
 					"bun",
 					"devos",
+					"workflow",
 					"run",
 					"--poll",
 					"--no-exit-when-idle",
@@ -91,7 +120,7 @@ describe("createCliProgram run", () => {
 		).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					issueArg: undefined,
 					projectId: undefined,
@@ -110,6 +139,7 @@ describe("createCliProgram run", () => {
 				await captureWithRuntime([
 					"bun",
 					"devos",
+					"workflow",
 					"run",
 					"--isolated-worktrees",
 				])
@@ -117,7 +147,7 @@ describe("createCliProgram run", () => {
 		).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					issueArg: undefined,
 					projectId: undefined,
@@ -136,12 +166,19 @@ describe("createCliProgram run", () => {
 
 	it("runs poll-forever as polling", async () => {
 		expect(
-			(await captureWithRuntime(["bun", "devos", "run", "--poll-forever"]))
-				.calls,
+			(
+				await captureWithRuntime([
+					"bun",
+					"devos",
+					"workflow",
+					"run",
+					"--poll-forever",
+				])
+			).calls,
 		).toEqual([
 			{ name: "loadConfig" },
 			{
-				name: "run",
+				name: "workflowRun",
 				payload: {
 					issueArg: undefined,
 					projectId: undefined,
@@ -159,14 +196,14 @@ describe("createCliProgram run", () => {
 
 	it("rejects invalid positive integer options", async () => {
 		for (const argv of [
-			["bun", "devos", "run", "--poll-interval-ms", "0"],
-			["bun", "devos", "run", "--max-poll-cycles", "-1"],
-			["bun", "devos", "run", "--concurrency", "1.5"],
+			["bun", "devos", "workflow", "run", "--poll-interval-ms", "0"],
+			["bun", "devos", "workflow", "run", "--max-poll-cycles", "-1"],
+			["bun", "devos", "workflow", "run", "--concurrency", "1.5"],
 		]) {
 			const result = await expectCommanderError(argv);
 
 			expect(result.error.message).toContain("must be a positive integer");
-			expect(result.stderr).toContain("Usage: devos run [options]");
+			expect(result.stderr).toContain("Usage: devos workflow run [options]");
 		}
 	});
 
@@ -174,6 +211,7 @@ describe("createCliProgram run", () => {
 		const projectScope = await expectCommanderError([
 			"bun",
 			"devos",
+			"workflow",
 			"run",
 			"--project",
 			"api",
@@ -182,6 +220,7 @@ describe("createCliProgram run", () => {
 		const pollForever = await expectCommanderError([
 			"bun",
 			"devos",
+			"workflow",
 			"run",
 			"--poll-forever",
 			"--max-poll-cycles",

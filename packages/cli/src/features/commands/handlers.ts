@@ -1,6 +1,12 @@
-import type { OnboardCommand, SkillsCommand, StatusCommand } from "../../args";
+import type {
+	LauncherCommand,
+	OnboardCommand,
+	SkillsCommand,
+	StatusCommand,
+} from "../../args";
 import type { LoadedConfig } from "../../features/config";
 import { getProjectById } from "../../features/config";
+import { runLocalLauncher } from "../../features/launcher";
 import { runSetupCheck, runSetupWizard } from "../../features/setup";
 import type { RunOptions } from "../../features/types";
 import { formatWorkflowStageDisplay } from "../../utils/status";
@@ -26,7 +32,14 @@ export async function handleOnboardCommand(
 	await runSetupWizard(cwd);
 }
 
-export async function handleRunCommand(
+export async function handleLauncherCommand(
+	_command: LauncherCommand,
+	cwd: string,
+): Promise<number> {
+	return runLocalLauncher({ cwd });
+}
+
+export async function handleWorkflowRunCommand(
 	config: LoadedConfig,
 	options: RunOptions,
 ): Promise<void> {

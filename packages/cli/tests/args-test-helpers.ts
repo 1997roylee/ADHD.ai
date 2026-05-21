@@ -22,6 +22,10 @@ export function createTestRuntime(calls: RuntimeCall[]): CliRuntime {
 		handleOnboardCommand: async (command, cwd) => {
 			calls.push({ name: "onboard", payload: { command, cwd } });
 		},
+		handleLauncherCommand: async (command, cwd) => {
+			calls.push({ name: "launcher", payload: { command, cwd } });
+			return 0;
+		},
 		runCliCommandDaemonOnly: async (options) => {
 			calls.push({ name: "daemonCliOnly", payload: options });
 			return 0;
@@ -30,8 +34,8 @@ export function createTestRuntime(calls: RuntimeCall[]): CliRuntime {
 			calls.push({ name: "daemonProduction", payload: options });
 			return 0;
 		},
-		handleRunCommand: async (_config, options) => {
-			calls.push({ name: "run", payload: options });
+		handleWorkflowRunCommand: async (_config, options) => {
+			calls.push({ name: "workflowRun", payload: options });
 		},
 		handleProjectsCommand: async () => {
 			calls.push({ name: "projects" });
