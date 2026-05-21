@@ -19,6 +19,12 @@ paths:
       responses:
         '200':
           description: Server health.
+  /api/health:
+    get:
+      tags: [Health]
+      responses:
+        '200':
+          description: Server health.
   /api/cli/history:
     get:
       tags: [CLI]

@@ -1,4 +1,3 @@
-import type { Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, {
@@ -10,6 +9,7 @@ import express, {
 import * as OpenApiValidator from "express-openapi-validator";
 import swaggerUi from "swagger-ui-express";
 import type { RouteHandler } from "./app.types";
+export { listenExpressApp } from "./express-listener";
 import type { ServerLogger } from "./logger.types";
 
 const OPENAPI_SPEC_PATH = path.resolve(
@@ -84,14 +84,6 @@ export function createExpressRequestLogger(logger: ServerLogger) {
 		});
 		next();
 	};
-}
-
-export function listenExpressApp(app: Express, port: number): Promise<Server> {
-	return new Promise((resolve, reject) => {
-		const server = app.listen(port);
-		server.once("listening", () => resolve(server));
-		server.once("error", reject);
-	});
 }
 
 function toWebRequest(request: ExpressRequest): Request {

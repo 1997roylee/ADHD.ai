@@ -32,10 +32,12 @@ import {
 import { attachRealtimeEventsSocket } from "./ws/realtime-events";
 
 const DEFAULT_SERVER_PORT = 3001;
+const DEFAULT_SERVER_HOST = "127.0.0.1";
 const DEFAULT_CLI_DAEMON_WS_URL = "ws://127.0.0.1:3002";
 
 export async function startServer(
 	port = resolveServerPort(process.env),
+	host = resolveServerHost(process.env),
 ): Promise<ServerInstance> {
 	const cwd = process.cwd();
 	const workspacePath = resolveServerWorkspacePath(process.env);
@@ -49,7 +51,7 @@ export async function startServer(
 		process.env.DEVOS_CLI_DAEMON_WS_URL ?? DEFAULT_CLI_DAEMON_WS_URL;
 	const pgliteDebug = resolvePgliteDebug(process.env);
 	logger.info(
-		{ port, databasePath, cwd, workspacePath, daemonUrl },
+		{ port, host, databasePath, cwd, workspacePath, daemonUrl },
 		"Starting server",
 	);
 	const serverDatabase = await initializeServerDatabase(databasePath, {
@@ -74,7 +76,7 @@ export async function startServer(
 		}),
 		{ logger },
 	);
-	const server = await listenExpressApp(app, port);
+	const server = await listenExpressApp(app, port, host);
 	const cliStreamProxy = attachCliStreamProxy({
 		server,
 		path: "/api/cli/stream",
@@ -106,7 +108,7 @@ export async function startServer(
 	const address = server.address();
 	const listeningPort = typeof address === "object" ? address?.port : port;
 	logger.info(
-		{ port: listeningPort ?? port, databasePath, cwd, workspacePath },
+		{ port: listeningPort ?? port, host, databasePath, cwd, workspacePath },
 		"Server started",
 	);
 	return server;
@@ -120,16 +122,17 @@ if (import.meta.main) {
 	});
 }
 
-function resolveServerPort(env: NodeJS.ProcessEnv): number {
-	const rawPort = DEFAULT_SERVER_PORT;
-	// if (!rawPort) {
-	// 	return DEFAULT_SERVER_PORT;
-	// }
+export function resolveServerPort(env: NodeJS.ProcessEnv): number {
+	const rawPort = env.PIV_SERVER_PORT ?? String(DEFAULT_SERVER_PORT);
 	const port = Number(rawPort);
-	if (!Number.isInteger(port) || port <= 0) {
-		throw new Error("Server port must be a positive integer");
+	if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+		throw new Error("PIV_SERVER_PORT must be a valid TCP port");
 	}
 	return port;
+}
+
+export function resolveServerHost(env: NodeJS.ProcessEnv): string {
+	return env.PIV_SERVER_HOST?.trim() || DEFAULT_SERVER_HOST;
 }
 
 function resolvePgliteDebug(env: NodeJS.ProcessEnv): 1 | undefined {

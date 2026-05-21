@@ -23,7 +23,7 @@ export function createHandleRequest(deps: AppDeps): RouteHandler {
 	const handler: RouteHandler = async (request) => {
 		const { pathname } = new URL(request.url);
 
-		if (pathname === "/health" && request.method === "GET") {
+		if (isHealthPath(pathname) && request.method === "GET") {
 			return jsonSuccess({ status: "ok" });
 		}
 
@@ -160,9 +160,13 @@ export function createHandleRequest(deps: AppDeps): RouteHandler {
 export const handleRequest: RouteHandler = async (request) => {
 	const { pathname } = new URL(request.url);
 
-	if (pathname === "/health" && request.method === "GET") {
+	if (isHealthPath(pathname) && request.method === "GET") {
 		return jsonSuccess({ status: "ok" });
 	}
 
 	return new Response("Not Found", { status: 404 });
 };
+
+function isHealthPath(pathname: string): boolean {
+	return pathname === "/health" || pathname === "/api/health";
+}

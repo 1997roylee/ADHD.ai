@@ -17,14 +17,25 @@ interface LogEntry {
 
 describe("listenExpressApp", () => {
 	it("uses the requested fixed port when non-zero", async () => {
-		const calls: number[] = [];
-		const app = createFakeExpress((port, server) => {
-			calls.push(port);
+		const calls: Array<{ port: number; host?: string }> = [];
+		const app = createFakeExpress((port, host, server) => {
+			calls.push({ port, host });
 			queueMicrotask(() => server.emit("listening"));
 		});
 
 		await listenExpressApp(app, 3300);
-		expect(calls).toEqual([3300]);
+		expect(calls).toEqual([{ port: 3300, host: "127.0.0.1" }]);
+	});
+
+	it("uses the requested host when provided", async () => {
+		const calls: Array<{ port: number; host?: string }> = [];
+		const app = createFakeExpress((port, host, server) => {
+			calls.push({ port, host });
+			queueMicrotask(() => server.emit("listening"));
+		});
+
+		await listenExpressApp(app, 3300, "127.0.0.1");
+		expect(calls).toEqual([{ port: 3300, host: "127.0.0.1" }]);
 	});
 
 	it("rejects bind errors without retrying", async () => {
@@ -32,13 +43,13 @@ describe("listenExpressApp", () => {
 		const error = Object.assign(new Error("in use"), {
 			code: "EADDRINUSE",
 		});
-		const app = createFakeExpress((port, server) => {
+		const app = createFakeExpress((port, _host, server) => {
 			calls.push(port);
 			queueMicrotask(() => server.emit("error", error));
 		});
 
-		await expect(listenExpressApp(app, 0)).rejects.toBe(error);
-		expect(calls).toEqual([0]);
+		await expect(listenExpressApp(app, 3301)).rejects.toBe(error);
+		expect(calls).toEqual([3301]);
 	});
 
 	it("forwards streamed web response chunks before the body closes", async () => {
@@ -154,12 +165,16 @@ describe("listenExpressApp", () => {
 });
 
 function createFakeExpress(
-	listenImpl: (port: number, server: EventEmitter) => void,
+	listenImpl: (
+		port: number,
+		host: string | undefined,
+		server: EventEmitter,
+	) => void,
 ): Express {
 	return {
-		listen(port: number) {
+		listen(port: number, host?: string) {
 			const server = new EventEmitter() as unknown as Server;
-			listenImpl(port, server as unknown as EventEmitter);
+			listenImpl(port, host, server as unknown as EventEmitter);
 			return server;
 		},
 	} as unknown as Express;

@@ -13,6 +13,16 @@ describe("handleRequest", () => {
 		expect(await response.json()).toEqual({ status: "ok" });
 	});
 
+	it("returns 200 and JSON for GET /api/health", async () => {
+		const response = await handleRequest(
+			new Request("http://localhost/api/health", { method: "GET" }),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("application/json");
+		expect(await response.json()).toEqual({ status: "ok" });
+	});
+
 	it("returns 404 for unknown routes", async () => {
 		const response = await handleRequest(
 			new Request("http://localhost/missing", { method: "GET" }),

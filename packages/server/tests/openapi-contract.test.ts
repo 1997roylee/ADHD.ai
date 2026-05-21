@@ -5,6 +5,7 @@ import { READ_ONLY_SERVER_PATHS } from "../src/routes";
 
 const IMPLEMENTED_ROUTES = [
 	["GET", "/health"],
+	["GET", "/api/health"],
 	["GET", "/api/cli/history"],
 	["GET", "/api/projects"],
 	["POST", "/api/projects"],
